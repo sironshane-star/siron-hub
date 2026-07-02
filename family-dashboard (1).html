@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Siron Family Hub</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+:root{
+  --bg:#0d1018;--bg2:#13161f;--bg3:#1a1e2b;--bg4:#20253a;
+  --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.15);
+  --text:#eef0f8;--text2:#8a93ad;--text3:#4a5068;
+  --blue:#4f80e8;--blue2:#7aadff;
+  --green:#43c47a;--amber:#f0a020;--red:#d95555;
+  --purple:#9070e0;--teal:#2ec49c;--pink:#e06090;
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+
+/* ── TOP BAR ── */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 16px;background:var(--bg2);border-bottom:1px solid var(--border);
+  flex-shrink:0;gap:10px;
+}
+.brand{font-size:15px;font-weight:700;white-space:nowrap;}
+.topbar-r{display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.topbar-date{font-size:11px;color:var(--text2);white-space:nowrap;}
+.clock{font-size:20px;font-weight:200;color:var(--blue2);letter-spacing:1.5px;font-variant-numeric:tabular-nums;white-space:nowrap;}
+
+/* ── SWIPE CONTAINER ── */
+.swipe{
+  display:flex;height:calc(100dvh - 50px);
+  overflow-x:auto;scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch;scroll-behavior:smooth;
+}
+.swipe::-webkit-scrollbar{display:none;}
+
+/* ── EACH PAGE ── */
+.pg{
+  min-width:100vw;width:100vw;height:100%;
+  scroll-snap-align:start;overflow:hidden;
+  display:flex;flex-direction:column;
+}
+
+/* ── PAGE DOTS ── */
+.dots{
+  position:fixed;bottom:8px;left:50%;transform:translateX(-50%);
+  display:flex;gap:6px;z-index:200;pointer-events:none;
+}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--text3);transition:all .2s;}
+.dot.active{background:var(--blue2);width:18px;border-radius:3px;}
+
+/* ════════════════════════
+   PAGE 1 — CALENDAR + NARROW SIDEBAR
+════════════════════════ */
+.pg1{flex-direction:row;overflow:hidden;}
+
+.cal-section{
+  flex:1;min-width:0;
+  display:flex;flex-direction:column;
+  padding:12px 8px 26px 12px;
+  overflow:hidden;
+}
+
+.cal-nav{
+  display:flex;align-items:center;gap:8px;margin-bottom:12px;
+}
+.cnbtn{
+  background:var(--bg3);border:1px solid var(--border2);color:var(--text2);
+  border-radius:7px;width:32px;height:32px;cursor:pointer;font-size:18px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.cnbtn:active{background:var(--bg4);}
+.cal-month{font-size:19px;font-weight:700;letter-spacing:-.3px;}
+.today-btn{
+  margin-left:auto;font-size:11px;font-weight:600;padding:6px 13px;
+  background:var(--bg3);border:1px solid var(--border2);color:var(--text2);
+  border-radius:7px;cursor:pointer;white-space:nowrap;
+}
+
+/* Weekday labels */
+.cal-wdays{
+  display:grid;grid-template-columns:repeat(7,1fr);
+  margin-bottom:5px;flex-shrink:0;
+}
+.cwl{
+  text-align:center;font-size:10px;font-weight:700;
+  color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding-bottom:4px;
+}
+
+/* Calendar grid */
+.cal-grid{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  grid-template-rows:repeat(6,1fr);
+  gap:3px;
+  flex:1;
+}
+
+.cell{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:5px;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:flex-start;
+  padding:3px 1px 2px;
+  cursor:pointer;overflow:hidden;
+  transition:border-color .12s;
+  min-height:0;
+}
+.cell:active{background:var(--bg3);}
+.cell.today{border-color:var(--blue);background:rgba(79,128,232,.1);}
+.cell.other{opacity:.25;pointer-events:none;}
+.cell.selected{border-color:var(--blue2);}
+
+.cnum{
+  font-size:11px;font-weight:600;color:var(--text2);line-height:1;
+  width:20px;height:20px;display:flex;align-items:center;justify-content:center;
+  border-radius:50%;flex-shrink:0;
+}
+.cell.today .cnum{background:var(--blue);color:#fff;font-size:10px;}
+
+/* Event dots under the number */
+.cdots{
+  display:flex;gap:2px;justify-content:center;
+  flex-wrap:wrap;padding-top:2px;
+}
+.cdot{
+  width:5px;height:5px;border-radius:50%;flex-shrink:0;
+}
+.cdot.blue  {background:var(--blue2);}
+.cdot.green {background:var(--green);}
+.cdot.amber {background:var(--amber);}
+.cdot.purple{background:var(--purple);}
+.cdot.teal  {background:var(--teal);}
+.cdot.red   {background:var(--red);}
+.cdot.pink  {background:var(--pink);}
+
+/* ── SIDEBAR — narrow on mobile ── */
+.sidebar{
+  width:115px;flex-shrink:0;
+  background:var(--bg2);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+  padding-bottom:26px;
+}
+
+.sb-sec{border-bottom:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex:1;}
+.sb-sec:last-child{border-bottom:none;}
+.sb-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 8px 4px;flex-shrink:0;
+}
+.sb-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);}
+.sb-btn{font-size:11px;color:var(--blue);background:none;border:none;cursor:pointer;padding:2px 4px;}
+
+.sb-body{padding:0 6px 8px;overflow-y:auto;flex:1;}
+.sb-body::-webkit-scrollbar{width:2px;}
+.sb-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+/* Event cards — compact for narrow sidebar */
+.ev{
+  display:flex;flex-direction:column;
+  padding:6px 7px;background:var(--bg3);border-radius:6px;
+  border-left:3px solid var(--blue);margin-bottom:5px;
+}
+.ev.green {border-color:var(--green);}
+.ev.amber {border-color:var(--amber);}
+.ev.purple{border-color:var(--purple);}
+.ev.teal  {border-color:var(--teal);}
+.ev.red   {border-color:var(--red);}
+.ev.pink  {border-color:var(--pink);}
+.ev-dc{display:none;} /* hide date column on mobile, use name only */
+.ev-info{flex:1;min-width:0;}
+.ev-name{font-size:11px;font-weight:600;line-height:1.3;color:var(--text);word-break:break-word;white-space:normal;}
+.ev-time{font-size:9px;color:var(--text2);margin-top:2px;}
+.ev-who{font-size:9px;color:var(--text3);}
+.ev-unpin{background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;float:right;margin-left:2px;padding:0;}
+
+/* News — compact for narrow sidebar */
+.news-item{
+  padding:6px 7px;background:var(--bg3);border-radius:6px;
+  margin-bottom:5px;cursor:pointer;
+}
+.news-item:active{background:var(--bg4);}
+.news-src{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--blue2);margin-bottom:2px;}
+.news-hed{font-size:10px;font-weight:600;line-height:1.35;color:var(--text);}
+.news-time{font-size:9px;color:var(--text3);margin-top:2px;}
+.ph{font-size:10px;color:var(--text3);padding:6px 0 4px;line-height:1.6;font-style:italic;}
+.conn-btn{
+  display:block;width:100%;padding:6px 4px;background:var(--bg4);
+  border:1px solid var(--border2);border-radius:6px;
+  color:var(--text2);font-size:10px;cursor:pointer;text-align:center;margin-top:4px;
+}
+
+/* ════════════════════════
+   PAGES 2 & 3
+════════════════════════ */
+.pg2,.pg3{overflow-y:auto;padding:12px;gap:12px;display:flex;flex-direction:column;}
+.pg2::-webkit-scrollbar,.pg3::-webkit-scrollbar{display:none;}
+
+.card{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:12px;padding:14px;
+  display:flex;flex-direction:column;overflow:hidden;
+  flex-shrink:0;
+}
+.chd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.ctitle{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--text3);}
+.cbtn{font-size:12px;color:var(--blue);background:none;border:none;cursor:pointer;padding:4px 8px;}
+
+/* Family */
+.flist{display:flex;flex-direction:column;gap:4px;}
+.mbr{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;cursor:pointer;}
+.mbr:active{background:var(--bg3);}
+.mav{width:42px;height:42px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;}
+.mi{flex:1;}
+.mname{font-size:14px;font-weight:600;}
+.mstatus{font-size:12px;color:var(--text2);}
+.mbadge{font-size:11px;padding:3px 9px;border-radius:20px;font-weight:600;white-space:nowrap;}
+.mdiv{height:1px;background:var(--border);margin:2px 0;}
+
+/* Tasks */
+.tlist{display:flex;flex-direction:column;gap:2px;margin-bottom:10px;}
+.task{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:8px;cursor:pointer;}
+.task:active{background:var(--bg3);}
+.tchk{
+  width:22px;height:22px;border-radius:50%;border:2px solid var(--border2);
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s;
+}
+.task.done .tchk{background:var(--green);border-color:var(--green);}
+.task.done .ttxt{text-decoration:line-through;color:var(--text3);}
+.tchk svg{display:none;}
+.task.done .tchk svg{display:block;}
+.ttxt{font-size:14px;flex:1;line-height:1.3;}
+.twho{font-size:11px;color:var(--text3);white-space:nowrap;}
+.trow{display:flex;gap:8px;}
+.tinp{
+  flex:1;background:var(--bg3);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-size:14px;padding:9px 12px;
+  outline:none;font-family:inherit;
+}
+.tinp:focus{border-color:var(--blue);}
+.tinp::placeholder{color:var(--text3);}
+.tadd{
+  background:var(--blue);border:none;border-radius:8px;color:#fff;
+  font-size:22px;width:42px;height:42px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+
+/* Notes */
+.narea{
+  width:100%;height:220px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-size:14px;
+  font-family:inherit;padding:11px 13px;resize:none;outline:none;line-height:1.7;
+}
+.narea:focus{border-color:var(--blue);}
+.narea::placeholder{color:var(--text3);}
+.nfoot{margin-top:6px;font-size:11px;color:var(--text3);text-align:right;}
+
+/* Weather */
+.wx-ph{
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:10px;text-align:center;padding:20px 0;
+}
+.wx-ico-big{font-size:52px;}
+.wx-ph p{font-size:13px;color:var(--text3);line-height:1.6;}
+.wx-ph button{
+  margin-top:4px;padding:9px 20px;background:var(--bg3);
+  border:1px solid var(--border2);border-radius:8px;
+  color:var(--text2);font-size:13px;cursor:pointer;
+}
+.wx-live{display:none;flex-direction:column;gap:12px;}
+.wx-hero{display:flex;align-items:center;gap:14px;padding:4px 0;}
+.wxi{font-size:52px;}
+.wxt{font-size:48px;font-weight:200;line-height:1;}
+.wxdc .wxd{font-size:15px;font-weight:500;}
+.wxdc .wxc{font-size:12px;color:var(--text3);margin-top:2px;}
+.wx-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.wstat{background:var(--bg3);border-radius:8px;padding:10px 12px;}
+.wslbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px;}
+.wsval{font-size:17px;font-weight:600;}
+
+/* ── TABLET / WIDE SCREEN ── */
+@media (min-width: 700px) {
+  .sidebar{width:210px;}
+  .sb-head{padding:11px 13px 7px;}
+  .sb-title{font-size:10px;letter-spacing:1.2px;}
+  .sb-body{padding:0 10px 10px;}
+
+  /* Restore full event card layout on tablet */
+  .ev{flex-direction:row;gap:10px;align-items:flex-start;padding:9px 10px;border-radius:8px;margin-bottom:7px;}
+  .ev-dc{display:block;text-align:center;min-width:30px;flex-shrink:0;}
+  .ev-dn{font-size:17px;font-weight:700;line-height:1;color:var(--text);}
+  .ev-dd{font-size:9px;color:var(--text3);text-transform:uppercase;}
+  .cal-month{font-size:22px;}
+  .cnum{font-size:14px;width:26px;height:26px;}
+  .cell.today .cnum{font-size:13px;}
+  .cwl{font-size:12px;}
+  .ev-name{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ev-time{font-size:11px;}
+  .ev-who{font-size:11px;}
+
+  /* Restore news size on tablet */
+  .news-item{padding:9px 10px;border-radius:7px;margin-bottom:6px;}
+  .news-src{font-size:9px;}
+  .news-hed{font-size:12px;}
+  .news-time{font-size:10px;}
+  .ph{font-size:11px;}
+  .conn-btn{font-size:11px;padding:7px;}
+
+  /* Calendar pills on tablet */
+  .cpills-tablet{display:flex;flex-direction:column;gap:2px;overflow:hidden;}
+  .pill{font-size:9px;font-weight:500;padding:1px 4px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4;}
+  .p-blue  {background:rgba(79,128,232,.2);color:var(--blue2);}
+  .p-green {background:rgba(67,196,122,.18);color:var(--green);}
+  .p-amber {background:rgba(240,160,32,.18);color:var(--amber);}
+  .p-purple{background:rgba(144,112,224,.18);color:var(--purple);}
+  .p-teal  {background:rgba(46,196,156,.18);color:var(--teal);}
+  .p-red   {background:rgba(217,85,85,.18);color:var(--red);}
+  .p-pink  {background:rgba(224,96,144,.18);color:var(--pink);}
+  .cmore{font-size:8px;color:var(--text3);padding-left:4px;}
+
+  .pg2,.pg3{
+    display:grid !important;
+    grid-template-columns:1fr 1fr;
+    grid-template-rows:1fr;
+    overflow:hidden;padding:14px;
+  }
+  .card{overflow:hidden;}
+  .tlist{overflow-y:auto;}
+  .narea{flex:1;height:auto;}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">🏠 Siron Family Hub</div>
+  <div class="topbar-r">
+    <div class="topbar-date" id="topbar-date"></div>
+    <div class="clock" id="clock"></div>
+  </div>
+</div>
+
+<!-- Sync status -->
+<div id="sync-status" style="height:0;overflow:hidden;font-size:11px;color:var(--green);text-align:center;padding:0;transition:all .3s;background:rgba(67,196,122,.08);"></div>
+
+<div class="dots">
+  <div class="dot active" id="d0"></div>
+  <div class="dot" id="d1"></div>
+  <div class="dot" id="d2"></div>
+</div>
+
+<div class="swipe" id="swipe">
+
+  <!-- ═══ PAGE 1: CALENDAR + SIDEBAR ═══ -->
+  <div class="pg pg1">
+
+    <div class="cal-section">
+      <div class="cal-nav">
+        <button class="cnbtn" id="prev-mo">&#8249;</button>
+        <button class="cnbtn" id="next-mo">&#8250;</button>
+        <span class="cal-month" id="cal-month"></span>
+        <button class="today-btn" onclick="goToday()">Today</button>
+      </div>
+      <div class="cal-wdays">
+        <div class="cwl">S</div><div class="cwl">M</div><div class="cwl">T</div>
+        <div class="cwl">W</div><div class="cwl">T</div><div class="cwl">F</div><div class="cwl">S</div>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
+
+    <div class="sidebar">
+      <!-- Pinned Important Events -->
+      <div class="sb-sec">
+        <div class="sb-head">
+          <span class="sb-title">📌 Important</span>
+          <button class="sb-btn" onclick="pinEvent()">+ Pin</button>
+        </div>
+        <div class="sb-body" id="pinned-list"></div>
+      </div>
+      <!-- Top News -->
+      <div class="sb-sec">
+        <div class="sb-head">
+          <span class="sb-title">📰 Top Stories</span>
+          <button class="sb-btn" onclick="fetchNews()">&#8635;</button>
+        </div>
+        <div class="sb-body" id="news-list">
+          <div class="ph">Connect a NewsAPI.org key to show top stories here.</div>
+          <button class="conn-btn" onclick="alert('Add your NEWS_API_KEY to the CONFIG block at the bottom of this file.')">Connect News API</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══ PAGE 2: FAMILY + TASKS ═══ -->
+  <div class="pg pg2">
+
+    <div class="card">
+      <div class="chd"><span class="ctitle">Family</span></div>
+      <div class="flist">
+        <div class="mbr">
+          <div class="mav" style="background:#162a50;color:#7aadff;">SH</div>
+          <div class="mi"><div class="mname">Shane</div><div class="mstatus">BathWorks &#8212; Sales</div></div>
+          <div class="mbadge" style="background:#0e1e3a;color:#7aadff;">&#127970; Work</div>
+        </div>
+        <div class="mdiv"></div>
+        <div class="mbr">
+          <div class="mav" style="background:#32153a;color:#e090c8;">AL</div>
+          <div class="mi"><div class="mname">Aleigh</div><div class="mstatus">Home</div></div>
+          <div class="mbadge" style="background:#22102a;color:#c070a8;">&#127968; Home</div>
+        </div>
+        <div class="mdiv"></div>
+        <div class="mbr">
+          <div class="mav" style="background:#123020;color:#43c47a;">HE</div>
+          <div class="mi"><div class="mname">Heath</div><div class="mstatus">School</div></div>
+          <div class="mbadge" style="background:#0c2016;color:#43c47a;">&#128218; School</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="chd">
+        <span class="ctitle">To-Do</span>
+        <button class="cbtn" onclick="clearDone()">Clear done</button>
+      </div>
+      <div class="tlist" id="task-list"></div>
+      <div class="trow">
+        <input class="tinp" id="task-inp" placeholder="Add a task..." onkeydown="if(event.key==='Enter')addTask()"/>
+        <button class="tadd" onclick="addTask()">+</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══ PAGE 3: NOTES + WEATHER ═══ -->
+  <div class="pg pg3">
+
+    <div class="card">
+      <div class="chd">
+        <span class="ctitle">Quick Notes</span>
+        <button class="cbtn" onclick="clearNotes()">Clear</button>
+      </div>
+      <textarea class="narea" id="notes-area" placeholder="Grocery list, reminders, anything..."></textarea>
+      <div class="nfoot" id="nfoot"></div>
+    </div>
+
+    <div class="card">
+      <div class="chd">
+        <span class="ctitle">Weather &#8212; Bay City, MI</span>
+        <button class="cbtn" id="wx-ref" onclick="fetchWeather()" style="display:none;">&#8635;</button>
+      </div>
+      <div class="wx-ph" id="wx-ph">
+        <div class="wx-ico-big">&#127828;</div>
+        <p>Live weather loads once your OpenWeatherMap key is added.</p>
+        <button onclick="alert('Add WEATHER_API_KEY to the CONFIG block at the bottom of this file.')">Connect Weather API</button>
+      </div>
+      <div class="wx-live" id="wx-live">
+        <div class="wx-hero">
+          <div class="wxi" id="wx-icon">&#9925;</div>
+          <div class="wxt" id="wx-temp">--&#176;</div>
+          <div class="wxdc">
+            <div class="wxd" id="wx-desc"></div>
+            <div class="wxc">Bay City, MI</div>
+          </div>
+        </div>
+        <div class="wx-stats">
+          <div class="wstat"><div class="wslbl">Feels Like</div><div class="wsval" id="wx-feels">--</div></div>
+          <div class="wstat"><div class="wslbl">Humidity</div><div class="wsval" id="wx-hum">--</div></div>
+          <div class="wstat"><div class="wslbl">Wind</div><div class="wsval" id="wx-wind">--</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div><!-- /swipe -->
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+// ══════════════════════════════════════════
+// CONFIG — paste your keys here
+// ══════════════════════════════════════════
+const CONFIG = {
+  // Your name — shows who added a task. Change to 'Aleigh' on her device.
+  MY_NAME: 'Shane',
+
+  // Firebase (shared notes + tasks — syncs all devices in real time)
+  // From: Firebase Console → Project Settings → Your Apps → SDK setup & config
+  FIREBASE_API_KEY:        'YOUR_FIREBASE_API_KEY',
+  FIREBASE_AUTH_DOMAIN:    'YOUR_PROJECT.firebaseapp.com',
+  FIREBASE_DB_URL:         'https://YOUR_PROJECT-default-rtdb.firebaseio.com',
+  FIREBASE_PROJECT_ID:     'YOUR_PROJECT_ID',
+  FIREBASE_STORAGE_BUCKET: 'YOUR_PROJECT.appspot.com',
+  FIREBASE_MESSAGING_ID:   'YOUR_MESSAGING_SENDER_ID',
+  FIREBASE_APP_ID:         'YOUR_APP_ID',
+
+  // Weather (OpenWeatherMap)
+  WEATHER_API_KEY: 'YOUR_OPENWEATHERMAP_KEY',
+  WEATHER_CITY:    'Bay City,US',
+
+  // Google Calendar
+  GCAL_API_KEY:     'YOUR_GOOGLE_API_KEY',
+  GCAL_IDS:         ['YOUR_CALENDAR_ID'],
+  GCAL_OAUTH_TOKEN: '',
+
+  // News (newsapi.org)
+  NEWS_API_KEY: 'YOUR_NEWSAPI_KEY',
+};
+
+// ── CLOCK ──
+function tick(){
+  const n=new Date();let h=n.getHours(),m=n.getMinutes();
+  const ap=h>=12?'PM':'AM';h=h%12||12;
+  document.getElementById('clock').textContent=`${h}:${String(m).padStart(2,'0')} ${ap}`;
+  const D=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const MF=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('topbar-date').textContent=`${D[n.getDay()]}, ${MF[n.getMonth()]} ${n.getDate()}`;
+}
+tick();setInterval(tick,10000);
+
+// ── DOTS ──
+const sw=document.getElementById('swipe');
+sw.addEventListener('scroll',()=>{
+  const i=Math.round(sw.scrollLeft/window.innerWidth);
+  [0,1,2].forEach(j=>document.getElementById('d'+j).classList.toggle('active',j===i));
+},{passive:true});
+
+// ── CALENDAR ──
+const TODAY=new Date();
+let cY=TODAY.getFullYear(),cM=TODAY.getMonth();
+let calEvs={};
+const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const COLS=['blue','green','amber','purple','teal','red','pink'];
+const isWide=()=>window.innerWidth>=700;
+
+function renderCal(){
+  document.getElementById('cal-month').textContent=`${MN[cM]} ${cY}`;
+  const g=document.getElementById('cal-grid');g.innerHTML='';
+  const first=new Date(cY,cM,1).getDay();
+  const dim=new Date(cY,cM+1,0).getDate();
+  const pd=new Date(cY,cM,0).getDate();
+  for(let i=first-1;i>=0;i--) addCell(g,pd-i,true,false);
+  for(let d=1;d<=dim;d++){
+    const it=d===TODAY.getDate()&&cM===TODAY.getMonth()&&cY===TODAY.getFullYear();
+    addCell(g,d,false,it);
+  }
+  const rem=42-(first+dim);
+  for(let d=1;d<=rem;d++) addCell(g,d,true,false);
+}
+
+function addCell(g,num,other,isToday){
+  const c=document.createElement('div');
+  c.className='cell'+(other?' other':'')+(isToday?' today':'');
+  // Number
+  const n=document.createElement('div');n.className='cnum';n.textContent=num;c.appendChild(n);
+  if(!other){
+    const key=`${cY}-${cM+1}-${num}`;
+    const evs=calEvs[key]||[];
+    if(evs.length){
+      if(isWide()){
+        // Tablet: show text pills
+        const pp=document.createElement('div');pp.className='cpills-tablet';
+        evs.slice(0,3).forEach(ev=>{
+          const p=document.createElement('div');p.className=`pill p-${ev.color||'blue'}`;p.textContent=ev.name;pp.appendChild(p);
+        });
+        if(evs.length>3){const m=document.createElement('div');m.className='cmore';m.textContent=`+${evs.length-3}`;pp.appendChild(m);}
+        c.appendChild(pp);
+      } else {
+        // Phone: show colored dots
+        const dd=document.createElement('div');dd.className='cdots';
+        evs.slice(0,3).forEach(ev=>{
+          const d=document.createElement('div');d.className=`cdot ${ev.color||'blue'}`;dd.appendChild(d);
+        });
+        c.appendChild(dd);
+      }
+    }
+    c.onclick=()=>{document.querySelectorAll('.cell.selected').forEach(x=>x.classList.remove('selected'));c.classList.add('selected');};
+  }
+  g.appendChild(c);
+}
+
+function goToday(){cY=TODAY.getFullYear();cM=TODAY.getMonth();renderCal();}
+document.getElementById('prev-mo').onclick=()=>{cM--;if(cM<0){cM=11;cY--;}renderCal();};
+document.getElementById('next-mo').onclick=()=>{cM++;if(cM>11){cM=0;cY++;}renderCal();};
+window.addEventListener('resize',renderCal);
+
+// Sample events
+const smp=[
+  {d:TODAY.getDate(),  m:TODAY.getMonth()+1,y:TODAY.getFullYear(),name:'Family Dinner',color:'purple',time:'5:00 PM',who:'All'},
+  {d:TODAY.getDate()+1,m:TODAY.getMonth()+1,y:TODAY.getFullYear(),name:'Golf Round',   color:'amber', time:'7:30 AM',who:'Shane'},
+  {d:TODAY.getDate()+2,m:TODAY.getMonth()+1,y:TODAY.getFullYear(),name:'Grocery Run',  color:'green', time:'10:00 AM',who:'Aleigh'},
+  {d:TODAY.getDate()+5,m:TODAY.getMonth()+1,y:TODAY.getFullYear(),name:'Coop Build',   color:'teal',  time:'9:00 AM',who:'Shane'},
+  {d:TODAY.getDate()+8,m:TODAY.getMonth()+1,y:TODAY.getFullYear(),name:"Heath's Game", color:'pink',  time:'3:00 PM',who:'Heath'},
+];
+smp.forEach(ev=>{const k=`${ev.y}-${ev.m}-${ev.d}`;if(!calEvs[k])calEvs[k]=[];calEvs[k].push({name:ev.name,color:ev.color});});
+renderCal();
+
+// ── PINNED EVENTS ──
+let pinned=JSON.parse(localStorage.getItem('fhd-pinned')||'null')||[
+  {name:'Family Dinner',d:TODAY.getDate(),day:'Today',time:'5:00 PM',who:'All',color:'purple'},
+  {name:'Golf Round',d:TODAY.getDate()+1,day:DN[new Date(TODAY.getFullYear(),TODAY.getMonth(),TODAY.getDate()+1).getDay()],time:'7:30 AM',who:'Shane',color:'amber'},
+  {name:'Coop Build',d:TODAY.getDate()+5,day:DN[new Date(TODAY.getFullYear(),TODAY.getMonth(),TODAY.getDate()+5).getDay()],time:'9:00 AM',who:'Shane',color:'teal'},
+];
+function savePin(){localStorage.setItem('fhd-pinned',JSON.stringify(pinned));}
+function renderPinned(){
+  const el=document.getElementById('pinned-list');el.innerHTML='';
+  if(!pinned.length){el.innerHTML='<div class="ph">Pin important events here.</div>';return;}
+  pinned.forEach((ev,i)=>{
+    const d=document.createElement('div');d.className=`ev ${ev.color||'blue'}`;
+    d.innerHTML=`
+      <div class="ev-info">
+        <button class="ev-unpin" onclick="unpin(${i})">&#215;</button>
+        <div class="ev-name">${ev.d ? `<b>${ev.d}</b> ` : ''}${ev.name}</div>
+        <div class="ev-time">${ev.time||'All day'}</div>
+        ${ev.who?`<div class="ev-who">${ev.who}</div>`:''}
+      </div>
+    `;
+    el.appendChild(d);
+  });
+}
+function unpin(i){pinned.splice(i,1);savePin();renderPinned();}
+function pinEvent(){
+  const name=prompt('Event name:');if(!name)return;
+  const d=parseInt(prompt('Day number (e.g. 15):')||'0');
+  const day=prompt('Label (e.g. Mon, Today):')||'';
+  const time=prompt('Time (e.g. 3:00 PM):')||'';
+  const who=prompt('Who? (Shane / Aleigh / Heath / All):')||'';
+  pinned.unshift({name,d,day,time,who,color:COLS[pinned.length%COLS.length]});
+  savePin();renderPinned();
+}
+renderPinned();
+
+// ── NEWS ──
+async function fetchNews(){
+  if(!CONFIG.NEWS_API_KEY||CONFIG.NEWS_API_KEY==='YOUR_NEWSAPI_KEY')return;
+  try{
+    const r=await fetch(`https://newsapi.org/v2/top-headlines?country=us&pageSize=6&apiKey=${CONFIG.NEWS_API_KEY}`);
+    const data=await r.json();
+    const el=document.getElementById('news-list');el.innerHTML='';
+    (data.articles||[]).forEach(a=>{
+      const item=document.createElement('div');item.className='news-item';
+      item.innerHTML=`<div class="news-src">${a.source?.name||'News'}</div><div class="news-hed">${a.title}</div><div class="news-time">${new Date(a.publishedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>`;
+      item.onclick=()=>window.open(a.url,'_blank');
+      el.appendChild(item);
+    });
+  }catch(e){console.error(e);}
+}
+fetchNews();setInterval(fetchNews,300000);
+
+// ── WEATHER ──
+const WI={'01d':'&#9728;','01n':'&#127769;','02d':'&#9925;','02n':'&#9925;','03d':'&#9729;','03n':'&#9729;','04d':'&#9729;','04n':'&#9729;','09d':'&#127783;','09n':'&#127783;','10d':'&#127782;','10n':'&#127783;','11d':'&#9928;','11n':'&#9928;','13d':'&#10052;','13n':'&#10052;','50d':'&#127787;','50n':'&#127787;'};
+async function fetchWeather(){
+  if(!CONFIG.WEATHER_API_KEY||CONFIG.WEATHER_API_KEY==='YOUR_OPENWEATHERMAP_KEY')return;
+  try{
+    const r=await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(CONFIG.WEATHER_CITY)}&appid=${CONFIG.WEATHER_API_KEY}&units=imperial`);
+    const d=await r.json();if(d.cod!==200)return;
+    document.getElementById('wx-ph').style.display='none';
+    document.getElementById('wx-live').style.display='flex';
+    document.getElementById('wx-ref').style.display='';
+    document.getElementById('wx-icon').innerHTML=WI[d.weather[0].icon]||'&#127777;';
+    document.getElementById('wx-temp').textContent=`${Math.round(d.main.temp)}\u00b0F`;
+    document.getElementById('wx-desc').textContent=d.weather[0].description.replace(/\b\w/g,c=>c.toUpperCase());
+    document.getElementById('wx-feels').textContent=`${Math.round(d.main.feels_like)}\u00b0F`;
+    document.getElementById('wx-hum').textContent=`${d.main.humidity}%`;
+    document.getElementById('wx-wind').textContent=`${Math.round(d.wind.speed)} mph`;
+  }catch(e){}
+}
+fetchWeather();setInterval(fetchWeather,600000);
+
+// ══════════════════════════════════════════
+// FIREBASE — SHARED REAL-TIME SYNC
+// Tasks and Notes sync across all devices
+// ══════════════════════════════════════════
+
+// Firebase SDK (loaded from CDN)
+const FB_READY = typeof firebase !== 'undefined';
+
+function initFirebase() {
+  if (!CONFIG.FIREBASE_API_KEY || CONFIG.FIREBASE_API_KEY === 'YOUR_FIREBASE_API_KEY') {
+    // No Firebase key — fall back to localStorage
+    initLocalTasks();
+    initLocalNotes();
+    return;
+  }
+
+  try {
+    firebase.initializeApp({
+      apiKey:            CONFIG.FIREBASE_API_KEY,
+      authDomain:        CONFIG.FIREBASE_AUTH_DOMAIN,
+      databaseURL:       CONFIG.FIREBASE_DB_URL,
+      projectId:         CONFIG.FIREBASE_PROJECT_ID,
+      storageBucket:     CONFIG.FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: CONFIG.FIREBASE_MESSAGING_ID,
+      appId:             CONFIG.FIREBASE_APP_ID,
+    });
+
+    const db = firebase.database();
+
+    // ── SHARED TASKS ──
+    const tasksRef = db.ref('siron-hub/tasks');
+
+    // Listen for any change from any device — updates instantly
+    tasksRef.on('value', snap => {
+      const data = snap.val();
+      const taskList = data ? Object.entries(data).map(([id, t]) => ({ id, ...t })) : [];
+      taskList.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      renderTasks(taskList, true);
+    });
+
+    window.addTask = function() {
+      const inp = document.getElementById('task-inp');
+      const v = inp.value.trim(); if (!v) return;
+      tasksRef.push({ text: v, done: false, who: CONFIG.MY_NAME || '', createdAt: Date.now() });
+      inp.value = '';
+    };
+
+    window.toggleTask = function(id, done) {
+      tasksRef.child(id).update({ done: !done });
+    };
+
+    window.clearDone = function() {
+      tasksRef.once('value', snap => {
+        const data = snap.val(); if (!data) return;
+        Object.entries(data).forEach(([id, t]) => { if (t.done) tasksRef.child(id).remove(); });
+      });
+    };
+
+    // ── SHARED NOTES ──
+    const notesRef = db.ref('siron-hub/notes');
+
+    const na = document.getElementById('notes-area');
+    let notesDebounce;
+
+    // Load notes and keep listening for changes from other devices
+    notesRef.on('value', snap => {
+      const val = snap.val() || '';
+      // Only update if a different device changed it (avoid cursor jumping mid-type)
+      if (document.activeElement !== na) {
+        na.value = val;
+        nfoot();
+      }
+    });
+
+    na.oninput = () => {
+      nfoot();
+      clearTimeout(notesDebounce);
+      // Small delay so we don't write every keystroke
+      notesDebounce = setTimeout(() => notesRef.set(na.value), 800);
+    };
+
+    window.clearNotes = function() {
+      if (confirm('Clear shared notes for everyone?')) {
+        notesRef.set('');
+        na.value = '';
+        nfoot();
+      }
+    };
+
+    // Show sync indicator
+    showSyncStatus('🔥 Firebase connected — syncing live');
+
+  } catch(e) {
+    console.error('Firebase init error:', e);
+    initLocalTasks();
+    initLocalNotes();
+    showSyncStatus('⚠ Firebase error — using local storage');
+  }
+}
+
+function showSyncStatus(msg) {
+  const el = document.getElementById('sync-status');
+  if (el) { el.textContent = msg; setTimeout(() => el.textContent = '', 4000); }
+}
+
+// ── LOCAL FALLBACK (no Firebase key yet) ──
+function initLocalTasks() {
+  let tasks = JSON.parse(localStorage.getItem('fhd-tasks') || 'null') || [
+    {id:'1', text:'BathWorks lead follow-ups', done:false, who:'Shane'},
+    {id:'2', text:'Pick up groceries',         done:false, who:'Aleigh'},
+    {id:'3', text:'Heath homework check',      done:false, who:'Heath'},
+    {id:'4', text:'Order coop lumber',         done:false, who:'Shane'},
+  ];
+
+  function save() { localStorage.setItem('fhd-tasks', JSON.stringify(tasks)); }
+
+  renderTasks(tasks, false);
+
+  window.addTask = function() {
+    const inp = document.getElementById('task-inp');
+    const v = inp.value.trim(); if (!v) return;
+    tasks.push({ id: Date.now()+'', text: v, done: false, who: '' });
+    save(); renderTasks(tasks, false); inp.value = '';
+  };
+  window.toggleTask = function(id, done) {
+    const t = tasks.find(x => x.id === id); if (t) t.done = !done;
+    save(); renderTasks(tasks, false);
+  };
+  window.clearDone = function() {
+    tasks = tasks.filter(t => !t.done);
+    save(); renderTasks(tasks, false);
+  };
+}
+
+function initLocalNotes() {
+  const na = document.getElementById('notes-area');
+  na.value = localStorage.getItem('fhd-notes') || '';
+  na.oninput = () => { localStorage.setItem('fhd-notes', na.value); nfoot(); };
+  window.clearNotes = function() {
+    if (confirm('Clear notes?')) { na.value = ''; localStorage.removeItem('fhd-notes'); nfoot(); }
+  };
+  nfoot();
+}
+
+// ── SHARED TASK RENDERER (used by both Firebase and local) ──
+function renderTasks(taskList, firebase) {
+  const el = document.getElementById('task-list'); el.innerHTML = '';
+  taskList.forEach(t => {
+    const d = document.createElement('div');
+    d.className = 'task' + (t.done ? ' done' : '');
+    d.innerHTML = `
+      <div class="tchk" onclick="toggleTask('${t.id}', ${t.done})">
+        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+          <path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <span class="ttxt">${t.text}</span>
+      ${t.who ? `<span class="twho">${t.who}</span>` : ''}
+    `;
+    el.appendChild(d);
+  });
+}
+
+// ── NOTES FOOTER ──
+function nfoot() {
+  const c = document.getElementById('notes-area').value.length;
+  document.getElementById('nfoot').textContent = c ? `${c} chars · saved` : '';
+}
+
+// Boot Firebase (or fallback) after SDK loads
+window.addEventListener('load', () => {
+  if (typeof firebase !== 'undefined') {
+    initFirebase();
+  } else {
+    initLocalTasks();
+    initLocalNotes();
+  }
+});
+</script>
+</body>
+</html>
