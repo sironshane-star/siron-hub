@@ -584,7 +584,11 @@ function addCell(g,num,other,isToday){
         c.appendChild(dd);
       }
     }
-    c.onclick=()=>{document.querySelectorAll('.cell.selected').forEach(x=>x.classList.remove('selected'));c.classList.add('selected');};
+    c.onclick=()=>{
+      document.querySelectorAll('.cell.selected').forEach(x=>x.classList.remove('selected'));
+      c.classList.add('selected');
+      showDayEvents(key, num);
+    };
   }
   g.appendChild(c);
 }
@@ -636,7 +640,12 @@ async function fetchCalendarEvents() {
     const s = new Date(ev.start.dateTime || ev.start.date);
     const k = `${s.getFullYear()}-${s.getMonth()+1}-${s.getDate()}`;
     if (!calEvs[k]) calEvs[k] = [];
-    calEvs[k].push({ name: ev.summary || '(No title)', color: ev._color });
+    const evStart = new Date(ev.start.dateTime || ev.start.date);
+    const evH = evStart.getHours(), evMn = evStart.getMinutes();
+    const evTime = ev.start.dateTime
+      ? `${evH%12||12}:${String(evMn).padStart(2,'0')} ${evH>=12?'PM':'AM'}`
+      : 'All day';
+    calEvs[k].push({ name: ev.summary || '(No title)', color: ev._color, time: evTime });
   });
   renderCal();
 
@@ -671,6 +680,47 @@ function loadSampleEvents() {
 
 fetchCalendarEvents();
 setInterval(fetchCalendarEvents, 30 * 60 * 1000);
+
+// ── DAY EVENT POPUP ──
+function showDayEvents(key, dayNum) {
+  const evs = calEvs[key] || [];
+  const existing = document.getElementById('day-popup');
+  if (existing) existing.remove();
+  if (!evs.length) return;
+
+  const popup = document.createElement('div');
+  popup.id = 'day-popup';
+  popup.style.cssText = `
+    position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+    background:var(--bg2);border:1px solid var(--border2);border-radius:12px;
+    padding:18px;min-width:260px;max-width:340px;z-index:999;
+    box-shadow:0 20px 60px rgba(0,0,0,0.6);
+  `;
+
+  const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  popup.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-size:14px;font-weight:700;color:var(--text);">${MN[cM]} ${dayNum}</div>
+      <button onclick="document.getElementById('day-popup').remove()"
+        style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:20px;line-height:1;">×</button>
+    </div>
+    ${evs.map(ev => `
+      <div style="padding:10px 12px;background:var(--bg3);border-radius:8px;
+        border-left:3px solid var(--${ev.color||'blue'});margin-bottom:8px;">
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;">${ev.name}</div>
+        <div style="font-size:11px;color:var(--text2);">🕙 ${ev.time||'All day'}</div>
+      </div>
+    `).join('')}
+  `;
+
+  // Close on backdrop click
+  const backdrop = document.createElement('div');
+  backdrop.style.cssText = 'position:fixed;inset:0;z-index:998;';
+  backdrop.onclick = () => { popup.remove(); backdrop.remove(); };
+
+  document.body.appendChild(backdrop);
+  document.body.appendChild(popup);
+}
 
 // ── PINNED EVENTS ──
 let pinned=JSON.parse(localStorage.getItem('fhd-pinned')||'null')||[
