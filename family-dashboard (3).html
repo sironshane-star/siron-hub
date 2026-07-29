@@ -390,6 +390,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
   <div class="dot active" id="d0"></div>
   <div class="dot" id="d1"></div>
   <div class="dot" id="d2"></div>
+  <div class="dot" id="d3"></div>
 </div>
 
 <div class="swipe" id="swipe">
@@ -420,15 +421,19 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
         </div>
         <div class="sb-body" id="pinned-list"></div>
       </div>
-      <!-- Top News -->
+      <!-- Grocery List -->
       <div class="sb-sec">
         <div class="sb-head">
-          <span class="sb-title">📰 Top Stories</span>
-          <button class="sb-btn" onclick="fetchNews()">&#8635;</button>
+          <span class="sb-title">🛒 Groceries</span>
+          <button class="sb-btn" onclick="clearGroceryDone()">Clear done</button>
         </div>
-        <div class="sb-body" id="news-list">
-          <div class="ph">Connect a NewsAPI.org key to show top stories here.</div>
-          <button class="conn-btn" onclick="alert('Add your NEWS_API_KEY to the CONFIG block at the bottom of this file.')">Connect News API</button>
+        <div class="sb-body">
+          <div id="grocery-list"></div>
+          <div style="display:flex;gap:5px;margin-top:6px;">
+            <input id="grocery-inp" class="tinp" style="font-size:12px;padding:6px 8px;"
+              placeholder="Add item..." onkeydown="if(event.key==='Enter')addGrocery()"/>
+            <button onclick="addGrocery()" class="tadd" style="width:30px;height:30px;font-size:16px;flex-shrink:0;">+</button>
+          </div>
         </div>
       </div>
     </div>
@@ -516,6 +521,20 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 
   </div>
 
+  <!-- ═══ PAGE 4: TOP STORIES ═══ -->
+  <div class="pg pg3" style="flex-direction:column;overflow-y:auto;">
+    <div class="card" style="flex:1;margin:14px 14px 26px;">
+      <div class="chd">
+        <span class="ctitle">📰 Top Stories</span>
+        <button class="cbtn" onclick="fetchNews()">&#8635;</button>
+      </div>
+      <div id="news-list" style="flex:1;overflow-y:auto;">
+        <div class="ph">Connect a NewsAPI.org key to show top stories here.</div>
+        <button class="conn-btn" onclick="alert('Add your NEWS_API_KEY to the CONFIG block.')">Connect News API</button>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /swipe -->
 
 <!-- Firebase SDK -->
@@ -572,7 +591,7 @@ tick();setInterval(tick,10000);
 const sw=document.getElementById('swipe');
 sw.addEventListener('scroll',()=>{
   const i=Math.round(sw.scrollLeft/window.innerWidth);
-  [0,1,2].forEach(j=>document.getElementById('d'+j).classList.toggle('active',j===i));
+  [0,1,2,3].forEach(j=>{ const d=document.getElementById('d'+j); if(d) d.classList.toggle('active',j===i); });
 },{passive:true});
 
 // ── CALENDAR ──
@@ -639,7 +658,29 @@ document.getElementById('next-mo').onclick=()=>{cM++;if(cM>11){cM=0;cY++;}render
 window.addEventListener('resize',renderCal);
 
 // ── GOOGLE CALENDAR ──
-const CAL_COLORS = ['green','amber','purple','teal','red','pink','blue'];
+// Maps Google Calendar colorId to our CSS variable names
+// Google's 11 event colors: https://developers.google.com/calendar/api/v3/reference/colors
+const GCAL_COLOR_MAP = {
+  '1':  'blue',    // Lavender → blue
+  '2':  'green',   // Sage → green
+  '3':  'purple',  // Grape → purple
+  '4':  'pink',    // Flamingo → pink
+  '5':  'amber',   // Banana → amber
+  '6':  'teal',    // Tangerine → teal (close enough)
+  '7':  'teal',    // Peacock → teal
+  '8':  'blue',    // Blueberry → blue
+  '9':  'green',   // Basil → green
+  '10': 'red',     // Tomato → red
+  '11': 'pink',    // Flamingo → pink
+};
+const CAL_DEFAULT_COLORS = ['amber','blue','purple','teal','pink'];
+
+function gcalColor(ev, calIndex) {
+  // Event-level color overrides calendar color
+  if (ev.colorId && GCAL_COLOR_MAP[ev.colorId]) return GCAL_COLOR_MAP[ev.colorId];
+  // Fall back to calendar-level color cycling
+  return CAL_DEFAULT_COLORS[calIndex % CAL_DEFAULT_COLORS.length];
+}
 
 async function fetchCalendarEvents() {
   const key = CONFIG.GCAL_API_KEY;
@@ -662,12 +703,12 @@ async function fetchCalendarEvents() {
     const id = ids[ci];
     if (!id || id.startsWith('YOUR_')) continue;
     try {
-      const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(id)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=50&key=${key}`;
+      const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(id)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=50&supportsAttachments=true&key=${key}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.error) { console.warn('GCal error:', data.error.message); continue; }
       if (data.items) {
-        data.items.forEach(ev => { ev._color = CAL_COLORS[ci % CAL_COLORS.length]; });
+        data.items.forEach(ev => { ev._color = gcalColor(ev, ci); });
         allEvents = allEvents.concat(data.items);
       }
     } catch(e) { console.error('Calendar fetch failed:', e); }
@@ -675,7 +716,18 @@ async function fetchCalendarEvents() {
 
   allEvents.sort((a,b) => new Date(a.start.dateTime||a.start.date) - new Date(b.start.dateTime||b.start.date));
 
-  // Plot dots/pills on calendar
+  // Load checked events from localStorage
+let checkedEvents = JSON.parse(localStorage.getItem('fhd-checked-events') || '{}');
+function toggleEventCheck(key, name) {
+  const id = key + '::' + name;
+  checkedEvents[id] = !checkedEvents[id];
+  localStorage.setItem('fhd-checked-events', JSON.stringify(checkedEvents));
+}
+function isEventChecked(key, name) {
+  return !!checkedEvents[key + '::' + name];
+}
+
+// Plot dots/pills on calendar
   allEvents.forEach(ev => {
     const s = new Date(ev.start.dateTime || ev.start.date);
     const k = `${s.getFullYear()}-${s.getMonth()+1}-${s.getDate()}`;
@@ -685,7 +737,21 @@ async function fetchCalendarEvents() {
     const evTime = ev.start.dateTime
       ? `${evH%12||12}:${String(evMn).padStart(2,'0')} ${evH>=12?'PM':'AM'}`
       : 'All day';
-    calEvs[k].push({ name: ev.summary || '(No title)', color: ev._color, time: evTime });
+    // Build end time
+    const evEnd = ev.end?.dateTime ? new Date(ev.end.dateTime) : null;
+    const evEndH = evEnd?.getHours(), evEndMn = evEnd?.getMinutes();
+    const evEndTime = evEnd ? `${evEndH%12||12}:${String(evEndMn).padStart(2,'0')} ${evEndH>=12?'PM':'AM'}` : '';
+
+    calEvs[k].push({
+      name:        ev.summary || '(No title)',
+      color:       ev._color,
+      time:        evTime,
+      endTime:     evEndTime,
+      location:    ev.location || '',
+      description: ev.description || '',
+      htmlLink:    ev.htmlLink || '',
+      attachments: ev.attachments || [],
+    });
   });
   renderCal();
 
@@ -722,41 +788,221 @@ fetchCalendarEvents();
 setInterval(fetchCalendarEvents, 30 * 60 * 1000);
 
 // ── DAY EVENT POPUP ──
+function closeDayPopup() {
+  document.getElementById('day-popup')?.remove();
+  document.getElementById('day-backdrop')?.remove();
+  closeAttachmentPreview();
+}
+
+function handleEvCardClick(key, name, cardId) {
+  // Ignore clicks on links/buttons inside the card
+  if (event.target.tagName === 'A' || event.target.tagName === 'BUTTON' ||
+      event.target.closest('a') || event.target.closest('[onclick]:not([id="'+cardId+'"])')) return;
+  toggleEventCheck(key, name);
+  const card = document.getElementById(cardId);
+  const chk = document.getElementById(cardId + '-chk');
+  const nameEl = card?.querySelector('div > div > div');
+  const checked = isEventChecked(key, name);
+  if (card) card.style.borderColor = checked ? 'var(--green)' : '';
+  if (chk) {
+    chk.style.background = checked ? 'var(--green)' : 'transparent';
+    chk.style.borderColor = checked ? 'var(--green)' : '';
+    chk.innerHTML = checked
+      ? '<svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      : '';
+  }
+  // Also re-render calendar dots to reflect checked state
+  renderCal();
+}
+
+// ── ATTACHMENT PREVIEW PANEL ──
+function closeAttachmentPreview() {
+  document.getElementById('attach-panel')?.remove();
+  document.getElementById('attach-backdrop')?.remove();
+}
+
+function openAttachmentPreview(previewUrl, title, fileUrl) {
+  closeAttachmentPreview();
+
+  const backdrop = document.createElement('div');
+  backdrop.id = 'attach-backdrop';
+  backdrop.style.cssText = 'position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.6);backdrop-filter:blur(3px);';
+  backdrop.onclick = closeAttachmentPreview;
+
+  const panel = document.createElement('div');
+  panel.id = 'attach-panel';
+  panel.style.cssText = `
+    position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:min(860px,92vw);height:min(620px,85vh);
+    background:var(--bg2);border:1px solid var(--border2);
+    border-radius:14px;z-index:1001;
+    display:flex;flex-direction:column;overflow:hidden;
+    box-shadow:0 30px 100px rgba(0,0,0,0.8);
+  `;
+
+  panel.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;
+      padding:12px 16px;background:var(--bg3);border-bottom:1px solid var(--border);
+      flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:18px;">📎</span>
+        <span style="font-size:13px;font-weight:600;color:var(--text);
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:400px;">${title}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+        <a href="${fileUrl}" target="_blank"
+          style="font-size:11px;color:var(--blue2);text-decoration:none;
+          padding:5px 10px;background:var(--bg4);border-radius:6px;border:1px solid var(--border2);">
+          Open in Drive ↗
+        </a>
+        <button onclick="closeAttachmentPreview()"
+          style="background:var(--bg4);border:1px solid var(--border);color:var(--text2);
+          cursor:pointer;font-size:16px;width:28px;height:28px;border-radius:50%;
+          display:flex;align-items:center;justify-content:center;">×</button>
+      </div>
+    </div>
+    <div style="flex:1;position:relative;background:#000;">
+      <iframe src="${previewUrl}"
+        style="width:100%;height:100%;border:none;"
+        allow="autoplay"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms">
+      </iframe>
+      <div id="attach-loading" style="position:absolute;inset:0;display:flex;flex-direction:column;
+        align-items:center;justify-content:center;gap:12px;background:var(--bg);pointer-events:none;">
+        <div style="font-size:32px;">📄</div>
+        <div style="font-size:13px;color:var(--text2);">Loading preview...</div>
+        <div style="font-size:11px;color:var(--text3);text-align:center;max-width:280px;line-height:1.6;">
+          If the preview doesn't load, the file may require<br>Google sign-in to view.
+        </div>
+        <a href="${fileUrl}" target="_blank"
+          style="font-size:12px;color:var(--blue2);text-decoration:none;
+          padding:8px 16px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;">
+          Open in Google Drive instead
+        </a>
+      </div>
+    </div>
+  `;
+
+  // Hide loading message once iframe loads
+  document.body.appendChild(backdrop);
+  document.body.appendChild(panel);
+
+  const iframe = panel.querySelector('iframe');
+  const loading = panel.querySelector('#attach-loading');
+  iframe.onload = () => {
+    setTimeout(() => { if(loading) loading.style.opacity = '0'; }, 800);
+  };
+}
+
 function showDayEvents(key, dayNum) {
   const evs = calEvs[key] || [];
-  const existing = document.getElementById('day-popup');
-  if (existing) existing.remove();
+  closeDayPopup();
   if (!evs.length) return;
+
+  const MN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  // Build event cards HTML
+  const evCards = evs.map((ev, ei) => {
+    const checked = isEventChecked(key, ev.name);
+    const timeStr = ev.time
+      ? (ev.endTime ? `🕙 ${ev.time} – ${ev.endTime}` : `🕙 ${ev.time}`)
+      : '📅 All day';
+    const borderColor = checked ? 'var(--green)' : `var(--${ev.color||'amber'})`;
+    const cardId = `ev-card-${ei}`;
+
+    const locHTML = ev.location
+      ? `<div style="font-size:11px;color:var(--text2);margin-top:5px;">
+           📍 <a href="https://maps.google.com/?q=${encodeURIComponent(ev.location)}"
+             target="_blank" style="color:var(--blue2);text-decoration:none;">${ev.location}</a>
+         </div>`
+      : '';
+
+    const descHTML = ev.description
+      ? `<div style="font-size:11px;color:var(--text2);margin-top:6px;line-height:1.5;
+           border-top:1px solid var(--border);padding-top:6px;">
+           ${ev.description.replace(/<[^>]*>/g,'').substring(0,200)}
+         </div>`
+      : '';
+
+    const attachHTML = ev.attachments?.length
+      ? `<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
+           <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:5px;">Attachments</div>
+           ${ev.attachments.map(a => {
+             const fileId = a.fileId || (a.fileUrl||'').match(/[-\w]{25,}/)?.[0];
+             const previewUrl = fileId ? `https://drive.google.com/file/d/${fileId}/preview` : null;
+             const clickAction = previewUrl
+               ? `openAttachmentPreview('${previewUrl}', '${(a.title||'Attachment').replace(/'/g,"\'")}', '${a.fileUrl||"#"}')`
+               : `window.open('${a.fileUrl||"#"}','_blank')`;
+             return `
+               <div onclick="${clickAction}"
+                 style="display:flex;align-items:center;gap:7px;padding:8px 10px;
+                 background:var(--bg4);border-radius:6px;margin-bottom:4px;
+                 cursor:pointer;border:1px solid var(--border);">
+                 <span style="font-size:18px;">📎</span>
+                 <span style="font-size:12px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);">${a.title||'Attachment'}</span>
+                 <span style="font-size:10px;color:var(--blue2);white-space:nowrap;">Preview ▶</span>
+               </div>`;
+           }).join('')}
+         </div>`
+      : '';
+
+    const gcalLink = ev.htmlLink
+      ? `<a href="${ev.htmlLink}" target="_blank"
+           style="display:block;margin-top:8px;text-align:center;font-size:11px;
+           color:var(--blue2);text-decoration:none;padding:6px;
+           background:var(--bg4);border-radius:6px;">
+           Open in Google Calendar →
+         </a>`
+      : '';
+
+    return `
+      <div id="${cardId}" onclick="handleEvCardClick('${key}','${ev.name.replace(/'/g,"\'")}','${cardId}')"
+        style="background:var(--bg3);border-radius:10px;
+        border-left:4px solid ${borderColor};
+        padding:12px 14px;margin-bottom:10px;cursor:pointer;
+        transition:border-color .2s;position:relative;">
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <div id="${cardId}-chk"
+            style="width:20px;height:20px;border-radius:50%;flex-shrink:0;margin-top:1px;
+            border:2px solid ${checked ? 'var(--green)' : borderColor};
+            background:${checked ? 'var(--green)' : 'transparent'};
+            display:flex;align-items:center;justify-content:center;">
+            ${checked ? '<svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:14px;font-weight:700;color:${checked ? 'var(--text3)' : 'var(--text)'};
+              margin-bottom:5px;text-decoration:${checked ? 'line-through' : 'none'};">${ev.name}</div>
+            <div style="font-size:12px;color:var(--text2);">${timeStr}</div>
+            ${locHTML}${descHTML}
+          </div>
+        </div>
+        ${attachHTML}${gcalLink}
+      </div>`;
+  }).join('');
 
   const popup = document.createElement('div');
   popup.id = 'day-popup';
   popup.style.cssText = `
     position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
-    background:var(--bg2);border:1px solid var(--border2);border-radius:12px;
-    padding:18px;min-width:260px;max-width:340px;z-index:999;
-    box-shadow:0 20px 60px rgba(0,0,0,0.6);
+    background:var(--bg2);border:1px solid var(--border2);border-radius:14px;
+    padding:18px;width:min(420px,90vw);max-height:80vh;overflow-y:auto;
+    z-index:999;box-shadow:0 24px 80px rgba(0,0,0,0.7);
   `;
-
-  const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   popup.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-      <div style="font-size:14px;font-weight:700;color:var(--text);">${MN[cM]} ${dayNum}</div>
-      <button onclick="document.getElementById('day-popup').remove()"
-        style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:20px;line-height:1;">×</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-size:16px;font-weight:700;color:var(--text);">${MN[cM]} ${dayNum}</div>
+      <button onclick="closeDayPopup()"
+        style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);
+        cursor:pointer;font-size:18px;line-height:1;width:28px;height:28px;
+        border-radius:50%;display:flex;align-items:center;justify-content:center;">×</button>
     </div>
-    ${evs.map(ev => `
-      <div style="padding:10px 12px;background:var(--bg3);border-radius:8px;
-        border-left:3px solid var(--${ev.color||'blue'});margin-bottom:8px;">
-        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;">${ev.name}</div>
-        <div style="font-size:11px;color:var(--text2);">🕙 ${ev.time||'All day'}</div>
-      </div>
-    `).join('')}
+    ${evCards}
   `;
 
-  // Close on backdrop click
   const backdrop = document.createElement('div');
-  backdrop.style.cssText = 'position:fixed;inset:0;z-index:998;';
-  backdrop.onclick = () => { popup.remove(); backdrop.remove(); };
+  backdrop.id = 'day-backdrop';
+  backdrop.style.cssText = 'position:fixed;inset:0;z-index:998;background:rgba(0,0,0,0.4);backdrop-filter:blur(2px);';
+  backdrop.onclick = closeDayPopup;
 
   document.body.appendChild(backdrop);
   document.body.appendChild(popup);
@@ -996,6 +1242,40 @@ function renderTasks(taskList, firebase) {
     el.appendChild(d);
   });
 }
+
+// ── GROCERY LIST ──
+let groceries = JSON.parse(localStorage.getItem('fhd-groceries') || 'null') || [
+  { text: 'Milk', done: false },
+  { text: 'Eggs', done: false },
+  { text: 'Bread', done: false },
+];
+function saveGroceries() { localStorage.setItem('fhd-groceries', JSON.stringify(groceries)); }
+function renderGroceries() {
+  const el = document.getElementById('grocery-list'); if (!el) return;
+  el.innerHTML = '';
+  groceries.forEach((g, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:7px;padding:5px 2px;border-radius:6px;';
+    row.innerHTML = `
+      <div style="width:16px;height:16px;border-radius:50%;flex-shrink:0;border:2px solid ${g.done?'var(--green)':'var(--border2)'};
+        background:${g.done?'var(--green)':'transparent'};display:flex;align-items:center;justify-content:center;cursor:pointer;">
+        ${g.done?'<svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3L3 5L7 1" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
+      </div>
+      <span style="font-size:12px;flex:1;color:${g.done?'var(--text3)':'var(--text)'};text-decoration:${g.done?'line-through':'none'};">${g.text}</span>
+      <button onclick="removeGrocery(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;">×</button>
+    `;
+    row.querySelector('div').onclick = () => { groceries[i].done=!groceries[i].done; saveGroceries(); renderGroceries(); };
+    el.appendChild(row);
+  });
+}
+function addGrocery() {
+  const inp=document.getElementById('grocery-inp');
+  const v=inp.value.trim(); if(!v) return;
+  groceries.push({text:v,done:false}); saveGroceries(); renderGroceries(); inp.value='';
+}
+function removeGrocery(i) { groceries.splice(i,1); saveGroceries(); renderGroceries(); }
+function clearGroceryDone() { groceries=groceries.filter(g=>!g.done); saveGroceries(); renderGroceries(); }
+renderGroceries();
 
 // ── NOTES FOOTER ──
 function nfoot() {
