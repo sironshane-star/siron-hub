@@ -575,6 +575,17 @@ const CONFIG = {
   NEWS_API_KEY: 'YOUR_NEWSAPI_KEY',
 };
 
+// ── CHECKED EVENTS ──
+let checkedEvents = JSON.parse(localStorage.getItem('fhd-checked-events') || '{}');
+function toggleEventCheck(key, name) {
+  const id = key + '::' + name;
+  checkedEvents[id] = !checkedEvents[id];
+  localStorage.setItem('fhd-checked-events', JSON.stringify(checkedEvents));
+}
+function isEventChecked(key, name) {
+  return !!checkedEvents[key + '::' + name];
+}
+
 // ── CLOCK ──
 function tick(){
   const n=new Date();let h=n.getHours(),m=n.getMinutes();
@@ -661,24 +672,37 @@ window.addEventListener('resize',renderCal);
 // Maps Google Calendar colorId to our CSS variable names
 // Google's 11 event colors: https://developers.google.com/calendar/api/v3/reference/colors
 const GCAL_COLOR_MAP = {
-  '1':  'blue',    // Lavender → blue
-  '2':  'green',   // Sage → green
-  '3':  'purple',  // Grape → purple
-  '4':  'pink',    // Flamingo → pink
-  '5':  'amber',   // Banana → amber
-  '6':  'teal',    // Tangerine → teal (close enough)
-  '7':  'teal',    // Peacock → teal
-  '8':  'blue',    // Blueberry → blue
-  '9':  'green',   // Basil → green
-  '10': 'red',     // Tomato → red
-  '11': 'pink',    // Flamingo → pink
+  '0':  'text2',   // Graphite
+  '1':  'purple',  // Lavender
+  '2':  'green',   // Sage
+  '3':  'purple',  // Grape
+  '4':  'pink',    // Flamingo
+  '5':  'amber',   // Banana
+  '6':  'amber',   // Tangerine (orange)
+  '7':  'teal',    // Peacock
+  '8':  'blue',    // Blueberry
+  '9':  'green',   // Basil
+  '10': 'teal',    // Peacock (alt)
+  '11': 'red',     // Tomato → red
+};
+// Also map hex colors Google sometimes returns directly
+const GCAL_HEX_MAP = {
+  '#d50000': 'red',    '#e67c73': 'red',
+  '#f6bf26': 'amber',  '#f4511e': 'amber',
+  '#33b679': 'green',  '#0b8043': 'green',
+  '#039be5': 'blue',   '#3f51b5': 'blue',
+  '#7986cb': 'purple', '#8e24aa': 'purple',
+  '#616161': 'text2',
 };
 const CAL_DEFAULT_COLORS = ['amber','blue','purple','teal','pink'];
 
 function gcalColor(ev, calIndex) {
-  // Event-level color overrides calendar color
+  // Check colorId first
   if (ev.colorId && GCAL_COLOR_MAP[ev.colorId]) return GCAL_COLOR_MAP[ev.colorId];
-  // Fall back to calendar-level color cycling
+  // Check direct hex color (some API responses use this)
+  if (ev.backgroundColor && GCAL_HEX_MAP[ev.backgroundColor.toLowerCase()])
+    return GCAL_HEX_MAP[ev.backgroundColor.toLowerCase()];
+  // Fall back to calendar-level cycling
   return CAL_DEFAULT_COLORS[calIndex % CAL_DEFAULT_COLORS.length];
 }
 
@@ -708,7 +732,10 @@ async function fetchCalendarEvents() {
       const data = await res.json();
       if (data.error) { console.warn('GCal error:', data.error.message); continue; }
       if (data.items) {
-        data.items.forEach(ev => { ev._color = gcalColor(ev, ci); });
+        data.items.forEach(ev => {
+          ev._color = gcalColor(ev, ci);
+          if (ev.colorId) console.log('Event:', ev.summary, '| colorId:', ev.colorId, '| mapped to:', ev._color);
+        });
         allEvents = allEvents.concat(data.items);
       }
     } catch(e) { console.error('Calendar fetch failed:', e); }
@@ -716,18 +743,7 @@ async function fetchCalendarEvents() {
 
   allEvents.sort((a,b) => new Date(a.start.dateTime||a.start.date) - new Date(b.start.dateTime||b.start.date));
 
-  // Load checked events from localStorage
-let checkedEvents = JSON.parse(localStorage.getItem('fhd-checked-events') || '{}');
-function toggleEventCheck(key, name) {
-  const id = key + '::' + name;
-  checkedEvents[id] = !checkedEvents[id];
-  localStorage.setItem('fhd-checked-events', JSON.stringify(checkedEvents));
-}
-function isEventChecked(key, name) {
-  return !!checkedEvents[key + '::' + name];
-}
-
-// Plot dots/pills on calendar
+  // Plot dots/pills on calendar
   allEvents.forEach(ev => {
     const s = new Date(ev.start.dateTime || ev.start.date);
     const k = `${s.getFullYear()}-${s.getMonth()+1}-${s.getDate()}`;
@@ -956,22 +972,25 @@ function showDayEvents(key, dayNum) {
       : '';
 
     return `
-      <div id="${cardId}" onclick="handleEvCardClick('${key}','${ev.name.replace(/'/g,"\'")}','${cardId}')"
+      <div id="${cardId}"
         style="background:var(--bg3);border-radius:10px;
         border-left:4px solid ${borderColor};
-        padding:12px 14px;margin-bottom:10px;cursor:pointer;
-        transition:border-color .2s;position:relative;">
+        padding:12px 14px;margin-bottom:10px;
+        transition:border-color .2s;">
         <div style="display:flex;align-items:flex-start;gap:10px;">
           <div id="${cardId}-chk"
-            style="width:20px;height:20px;border-radius:50%;flex-shrink:0;margin-top:1px;
+            onclick="handleEvCardClick('${key}','${ev.name.replace(/'/g,"\'")}','${cardId}')"
+            style="width:22px;height:22px;border-radius:50%;flex-shrink:0;margin-top:2px;
             border:2px solid ${checked ? 'var(--green)' : borderColor};
             background:${checked ? 'var(--green)' : 'transparent'};
-            display:flex;align-items:center;justify-content:center;">
+            display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;">
             ${checked ? '<svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : ''}
           </div>
           <div style="flex:1;min-width:0;">
-            <div style="font-size:14px;font-weight:700;color:${checked ? 'var(--text3)' : 'var(--text)'};
-              margin-bottom:5px;text-decoration:${checked ? 'line-through' : 'none'};">${ev.name}</div>
+            <div style="font-size:14px;font-weight:700;
+              color:${checked ? 'var(--text3)' : 'var(--text)'};
+              margin-bottom:5px;
+              text-decoration:${checked ? 'line-through' : 'none'};">${ev.name}</div>
             <div style="font-size:12px;color:var(--text2);">${timeStr}</div>
             ${locHTML}${descHTML}
           </div>
@@ -1002,7 +1021,11 @@ function showDayEvents(key, dayNum) {
   const backdrop = document.createElement('div');
   backdrop.id = 'day-backdrop';
   backdrop.style.cssText = 'position:fixed;inset:0;z-index:998;background:rgba(0,0,0,0.4);backdrop-filter:blur(2px);';
-  backdrop.onclick = closeDayPopup;
+
+  // Delay attaching the close handler so the opening click doesn't immediately close it
+  setTimeout(() => { backdrop.onclick = closeDayPopup; }, 50);
+
+  popup.onclick = e => e.stopPropagation(); // stop clicks inside popup from closing it
 
   document.body.appendChild(backdrop);
   document.body.appendChild(popup);
