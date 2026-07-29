@@ -570,6 +570,11 @@ const CONFIG = {
   GCAL_IDS: [
     'family16181379016582660328@group.calendar.google.com',
   ],
+  // Set the color for each calendar above — must be same order
+  // Options: red, amber, green, blue, purple, teal, pink
+  GCAL_COLORS: [
+    'amber',  // default calendar color
+  ],
 
   // News (newsapi.org)
   NEWS_API_KEY: 'YOUR_NEWSAPI_KEY',
@@ -577,6 +582,16 @@ const CONFIG = {
 
 // ── CHECKED EVENTS ──
 let checkedEvents = JSON.parse(localStorage.getItem('fhd-checked-events') || '{}');
+
+// ── MANUAL EVENT COLORS ──
+let eventColors = JSON.parse(localStorage.getItem('fhd-event-colors') || '{}');
+function setEventColor(name, color) {
+  eventColors[name] = color;
+  localStorage.setItem('fhd-event-colors', JSON.stringify(eventColors));
+}
+function getEventColor(name, defaultColor) {
+  return eventColors[name] || defaultColor;
+}
 function toggleEventCheck(key, name) {
   const id = key + '::' + name;
   checkedEvents[id] = !checkedEvents[id];
@@ -741,17 +756,10 @@ async function fetchCalendarEvents() {
     const id = ids[ci];
     if (!id || id.startsWith('YOUR_')) continue;
     try {
-      // Step 1: fetch the calendar metadata to get its color
-      let calColor = CAL_DEFAULT_COLORS[ci % CAL_DEFAULT_COLORS.length];
-      try {
-        const calRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(id)}?key=${key}`);
-        const calData = await calRes.json();
-        if (calData.backgroundColor) {
-          const hex = calData.backgroundColor.toLowerCase();
-          calColor = GCAL_HEX_TO_VAR[hex] || calColor;
-          console.log('Calendar:', calData.summary, '| hex:', hex, '| mapped to:', calColor);
-        }
-      } catch(e) { console.warn('Could not fetch calendar metadata:', e); }
+      // Step 1: get calendar color from CONFIG.GCAL_COLORS
+      let calColor = (CONFIG.GCAL_COLORS && CONFIG.GCAL_COLORS[ci])
+        ? CONFIG.GCAL_COLORS[ci]
+        : CAL_DEFAULT_COLORS[ci % CAL_DEFAULT_COLORS.length];
 
       // Step 2: fetch the events
       const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(id)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=50&supportsAttachments=true&key=${key}`;
@@ -768,6 +776,8 @@ async function fetchCalendarEvents() {
           } else {
             ev._color = calColor; // use the calendar's color
           }
+          // Manual dashboard color override takes highest priority
+          if (eventColors[ev.summary]) ev._color = eventColors[ev.summary];
           console.log('Event:', ev.summary, '| color:', ev._color);
         });
         allEvents = allEvents.concat(data.items);
@@ -838,6 +848,11 @@ fetchCalendarEvents();
 setInterval(fetchCalendarEvents, 30 * 60 * 1000);
 
 // ── DAY EVENT POPUP ──
+function rerenderPopup(key, dayNum) {
+  // Re-open the popup to reflect new color
+  showDayEvents(key, dayNum);
+}
+
 function closeDayPopup() {
   document.getElementById('day-popup')?.remove();
   document.getElementById('day-backdrop')?.remove();
@@ -957,7 +972,20 @@ function showDayEvents(key, dayNum) {
     const timeStr = ev.time
       ? (ev.endTime ? `🕙 ${ev.time} – ${ev.endTime}` : `🕙 ${ev.time}`)
       : '📅 All day';
-    const borderColor = checked ? 'var(--green)' : `var(--${ev.color||'amber'})`;
+    const evColor = getEventColor(ev.name, ev.color || 'amber');
+    const borderColor = checked ? 'var(--green)' : `var(--${evColor})`;
+
+    const COLORS = ['amber','red','green','blue','purple','teal','pink'];
+    const colorPickerHTML = `
+      <div style="display:flex;align-items:center;gap:5px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+        <span style="font-size:10px;color:var(--text3);margin-right:2px;">Color:</span>
+        ${COLORS.map(col => `
+          <div onclick="setEventColor('${ev.name.replace(/'/g,"\'")}', '${col}'); rerenderPopup('${key}', ${dayNum})"
+            style="width:18px;height:18px;border-radius:50%;background:var(--${col});cursor:pointer;
+            border:2px solid ${evColor===col ? '#fff' : 'transparent'};
+            transition:border-color .15s;flex-shrink:0;"></div>
+        `).join('')}
+      </div>`;
     const cardId = `ev-card-${ei}`;
 
     const locHTML = ev.location
@@ -1029,6 +1057,7 @@ function showDayEvents(key, dayNum) {
             ${locHTML}${descHTML}
           </div>
         </div>
+        ${colorPickerHTML}
         ${attachHTML}${gcalLink}
       </div>`;
   }).join('');
