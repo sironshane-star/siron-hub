@@ -706,6 +706,20 @@ function gcalColor(ev, calIndex) {
   return CAL_DEFAULT_COLORS[calIndex % CAL_DEFAULT_COLORS.length];
 }
 
+// Google Calendar hex color → our CSS var name
+const GCAL_HEX_TO_VAR = {
+  '#ac725e':'red',    '#d06b64':'red',    '#f83a22':'red',
+  '#fa573c':'red',    '#ff7537':'amber',  '#ffad46':'amber',
+  '#42d692':'green',  '#16a765':'green',  '#7bd148':'green',
+  '#b3dc6c':'green',  '#fbe983':'amber',  '#fad165':'amber',
+  '#92e1c0':'teal',   '#9fe1e7':'teal',   '#9fc6e7':'blue',
+  '#4986e7':'blue',   '#9a9cff':'purple', '#b99aff':'purple',
+  '#c2c2c2':'text2',  '#cabdbf':'text2',  '#cca6ac':'pink',
+  '#f691b2':'pink',   '#cd74e6':'purple', '#a47ae2':'purple',
+  '#db4035':'red',    '#ff9a00':'amber',  '#fad000':'amber',
+  '#afb8c1':'text2',
+};
+
 async function fetchCalendarEvents() {
   const key = CONFIG.GCAL_API_KEY;
   const ids = CONFIG.GCAL_IDS;
@@ -727,15 +741,34 @@ async function fetchCalendarEvents() {
     const id = ids[ci];
     if (!id || id.startsWith('YOUR_')) continue;
     try {
+      // Step 1: fetch the calendar metadata to get its color
+      let calColor = CAL_DEFAULT_COLORS[ci % CAL_DEFAULT_COLORS.length];
+      try {
+        const calRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(id)}?key=${key}`);
+        const calData = await calRes.json();
+        if (calData.backgroundColor) {
+          const hex = calData.backgroundColor.toLowerCase();
+          calColor = GCAL_HEX_TO_VAR[hex] || calColor;
+          console.log('Calendar:', calData.summary, '| hex:', hex, '| mapped to:', calColor);
+        }
+      } catch(e) { console.warn('Could not fetch calendar metadata:', e); }
+
+      // Step 2: fetch the events
       const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(id)}/events?timeMin=${tMin}&timeMax=${tMax}&singleEvents=true&orderBy=startTime&maxResults=50&supportsAttachments=true&key=${key}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.error) { console.warn('GCal error:', data.error.message); continue; }
       if (data.items) {
         data.items.forEach(ev => {
-          ev._color = gcalColor(ev, ci);
-          // Log ALL events so we can see what color data Google is sending
-          console.log('Event:', ev.summary, '| colorId:', ev.colorId, '| bg:', ev.backgroundColor, '| mapped:', ev._color);
+          // Event-level colorId overrides calendar color
+          if (ev.colorId && GCAL_COLOR_MAP[ev.colorId]) {
+            ev._color = GCAL_COLOR_MAP[ev.colorId];
+          } else if (ev.backgroundColor && GCAL_HEX_TO_VAR[ev.backgroundColor.toLowerCase()]) {
+            ev._color = GCAL_HEX_TO_VAR[ev.backgroundColor.toLowerCase()];
+          } else {
+            ev._color = calColor; // use the calendar's color
+          }
+          console.log('Event:', ev.summary, '| color:', ev._color);
         });
         allEvents = allEvents.concat(data.items);
       }
