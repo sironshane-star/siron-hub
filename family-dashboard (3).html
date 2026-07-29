@@ -588,6 +588,13 @@ let eventColors = JSON.parse(localStorage.getItem('fhd-event-colors') || '{}');
 function setEventColor(name, color) {
   eventColors[name] = color;
   localStorage.setItem('fhd-event-colors', JSON.stringify(eventColors));
+  // Update color in calEvs so calendar dots/pills reflect the change immediately
+  Object.keys(calEvs).forEach(key => {
+    calEvs[key].forEach(ev => {
+      if (ev.name === name) ev.color = color;
+    });
+  });
+  renderCal();
 }
 function getEventColor(name, defaultColor) {
   return eventColors[name] || defaultColor;
@@ -656,15 +663,24 @@ function addCell(g,num,other,isToday){
         // PC: show colored text pill labels
         const pp=document.createElement('div');pp.className='cpills';
         evs.slice(0,3).forEach(ev=>{
-          const p=document.createElement('div');p.className=`cpill cp-${ev.color||'blue'}`;p.textContent=ev.name;pp.appendChild(p);
+          const checked = isEventChecked(key, ev.name);
+          const p=document.createElement('div');
+          p.className=`cpill cp-${checked ? 'green' : (ev.color||'blue')}`;
+          p.style.cssText = checked ? 'text-decoration:line-through;opacity:0.7;' : '';
+          p.textContent = (checked ? '✓ ' : '') + ev.name;
+          pp.appendChild(p);
         });
         if(evs.length>3){const m=document.createElement('div');m.className='cmore-lbl';m.textContent=`+${evs.length-3} more`;pp.appendChild(m);}
         c.appendChild(pp);
       } else {
-        // Mobile/tablet: show colored dots
+        // Mobile/tablet: show colored dots (green if checked)
         const dd=document.createElement('div');dd.className='cdots';
         evs.slice(0,3).forEach(ev=>{
-          const d=document.createElement('div');d.className=`cdot ${ev.color||'blue'}`;dd.appendChild(d);
+          const checked = isEventChecked(key, ev.name);
+          const d=document.createElement('div');
+          d.className=`cdot ${checked ? 'green' : (ev.color||'blue')}`;
+          if(checked) d.style.cssText='box-shadow:0 0 0 2px var(--green);';
+          dd.appendChild(d);
         });
         c.appendChild(dd);
       }
@@ -797,6 +813,8 @@ async function fetchCalendarEvents() {
     const evTime = ev.start.dateTime
       ? `${evH%12||12}:${String(evMn).padStart(2,'0')} ${evH>=12?'PM':'AM'}`
       : 'All day';
+    // Apply any saved manual color override
+    if (eventColors[ev.summary]) ev._color = eventColors[ev.summary];
     // Build end time
     const evEnd = ev.end?.dateTime ? new Date(ev.end.dateTime) : null;
     const evEndH = evEnd?.getHours(), evEndMn = evEnd?.getMinutes();
@@ -876,7 +894,16 @@ function handleEvCardClick(key, name, cardId) {
       ? '<svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
       : '';
   }
-  // Also re-render calendar dots to reflect checked state
+  // Update name strikethrough and card border in popup
+  if (card) {
+    card.style.borderColor = checked ? 'var(--green)' : '';
+    const nameDiv = card.querySelector('[style*="font-weight:700"]');
+    if (nameDiv) {
+      nameDiv.style.textDecoration = checked ? 'line-through' : 'none';
+      nameDiv.style.color = checked ? 'var(--text3)' : 'var(--text)';
+    }
+  }
+  // Re-render calendar so dots/pills update immediately
   renderCal();
 }
 
