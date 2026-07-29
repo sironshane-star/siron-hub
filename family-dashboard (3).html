@@ -734,7 +734,8 @@ async function fetchCalendarEvents() {
       if (data.items) {
         data.items.forEach(ev => {
           ev._color = gcalColor(ev, ci);
-          if (ev.colorId) console.log('Event:', ev.summary, '| colorId:', ev.colorId, '| mapped to:', ev._color);
+          // Log ALL events so we can see what color data Google is sending
+          console.log('Event:', ev.summary, '| colorId:', ev.colorId, '| bg:', ev.backgroundColor, '| mapped:', ev._color);
         });
         allEvents = allEvents.concat(data.items);
       }
@@ -782,7 +783,7 @@ async function fetchCalendarEvents() {
         day: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][s.getDay()],
         time: ev.start.dateTime ? `${h%12||12}:${String(mn).padStart(2,'0')} ${h>=12?'PM':'AM'}` : 'All day',
         who: '',
-        color: CAL_COLORS[i % CAL_COLORS.length],
+        color: CAL_DEFAULT_COLORS[i % CAL_DEFAULT_COLORS.length],
       };
     });
     renderPinned();
