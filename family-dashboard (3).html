@@ -450,32 +450,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
   <!-- ═══ PAGE 2: FAMILY + TASKS ═══ -->
   <div class="pg pg2">
 
-    <!-- Family Panel -->
-    <div class="card" style="grid-column:1;grid-row:1;">
-      <div class="chd"><span class="ctitle">Family</span></div>
-      <div class="flist">
-        <div class="mbr">
-          <div class="mav" style="background:#162a50;color:#7aadff;">SH</div>
-          <div class="mi"><div class="mname">Shane</div><div class="mstatus">BathWorks &#8212; Sales</div></div>
-          <div class="mbadge" style="background:#0e1e3a;color:#7aadff;">&#127970; Work</div>
-        </div>
-        <div class="mdiv"></div>
-        <div class="mbr">
-          <div class="mav" style="background:#32153a;color:#e090c8;">AL</div>
-          <div class="mi"><div class="mname">Aleigh</div><div class="mstatus">Home</div></div>
-          <div class="mbadge" style="background:#22102a;color:#c070a8;">&#127968; Home</div>
-        </div>
-        <div class="mdiv"></div>
-        <div class="mbr">
-          <div class="mav" style="background:#123020;color:#43c47a;">HE</div>
-          <div class="mi"><div class="mname">Heath</div><div class="mstatus">School</div></div>
-          <div class="mbadge" style="background:#0c2016;color:#43c47a;">&#128218; School</div>
-        </div>
-      </div>
-    </div>
-
     <!-- Shane's To-Do -->
-    <div class="card" style="grid-column:2;grid-row:1;">
+    <div class="card" style="grid-column:1;grid-row:1;">
       <div class="chd">
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="width:28px;height:28px;border-radius:50%;background:#162a50;color:#7aadff;
@@ -492,7 +468,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
     </div>
 
     <!-- Aleigh's To-Do -->
-    <div class="card" style="grid-column:3;grid-row:1;">
+    <div class="card" style="grid-column:2;grid-row:1;">
       <div class="chd">
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="width:28px;height:28px;border-radius:50%;background:#32153a;color:#e090c8;
@@ -505,6 +481,23 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
       <div class="trow">
         <input class="tinp" id="task-inp-aleigh" placeholder="Add Aleigh's task..." onkeydown="if(event.key==='Enter')addTask('aleigh')"/>
         <button class="tadd" onclick="addTask('aleigh')">+</button>
+      </div>
+    </div>
+
+    <!-- Heath's To-Do -->
+    <div class="card" style="grid-column:3;grid-row:1;">
+      <div class="chd">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:28px;height:28px;border-radius:50%;background:#123020;color:#43c47a;
+            display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;">HE</div>
+          <span class="ctitle">Heath's Tasks</span>
+        </div>
+        <button class="cbtn" onclick="clearDone('heath')">Clear done</button>
+      </div>
+      <div class="tlist" id="task-list-heath"></div>
+      <div class="trow">
+        <input class="tinp" id="task-inp-heath" placeholder="Add Heath's task..." onkeydown="if(event.key==='Enter')addTask('heath')"/>
+        <button class="tadd" onclick="addTask('heath')">+</button>
       </div>
     </div>
 
@@ -1247,8 +1240,13 @@ function initFirebase() {
     const db = firebase.database();
 
     // ── SHARED TASKS — Shane & Aleigh separate ──
-    const shaneRef = db.ref('siron-hub/tasks-shane');
+    const shaneRef  = db.ref('siron-hub/tasks-shane');
     const aleighRef = db.ref('siron-hub/tasks-aleigh');
+    const heathRef  = db.ref('siron-hub/tasks-heath');
+
+    function getRef(who) {
+      return who==='shane' ? shaneRef : who==='aleigh' ? aleighRef : heathRef;
+    }
 
     function fbTaskListener(ref, listId) {
       ref.on('value', snap => {
@@ -1258,27 +1256,25 @@ function initFirebase() {
         renderTasks(list, listId);
       });
     }
-    fbTaskListener(shaneRef, 'task-list-shane');
+    fbTaskListener(shaneRef,  'task-list-shane');
     fbTaskListener(aleighRef, 'task-list-aleigh');
+    fbTaskListener(heathRef,  'task-list-heath');
 
     window.addTask = function(who) {
       const inp = document.getElementById('task-inp-' + who);
       const v = inp.value.trim(); if (!v) return;
-      const ref = who === 'shane' ? shaneRef : aleighRef;
-      ref.push({ text: v, done: false, createdAt: Date.now() });
+      getRef(who).push({ text: v, done: false, createdAt: Date.now() });
       inp.value = '';
     };
 
     window.toggleTask = function(id, done, who) {
-      const ref = who === 'shane' ? shaneRef : aleighRef;
-      ref.child(id).update({ done: !done });
+      getRef(who).child(id).update({ done: !done });
     };
 
     window.clearDone = function(who) {
-      const ref = who === 'shane' ? shaneRef : aleighRef;
-      ref.once('value', snap => {
+      getRef(who).once('value', snap => {
         const data = snap.val(); if (!data) return;
-        Object.entries(data).forEach(([id, t]) => { if (t.done) ref.child(id).remove(); });
+        Object.entries(data).forEach(([id, t]) => { if (t.done) getRef(who).child(id).remove(); });
       });
     };
 
@@ -1333,35 +1329,40 @@ function showSyncStatus(msg) {
 function initLocalTasks() {
   const defaults = {
     shane:  [{id:'1',text:'BathWorks lead follow-ups',done:false},{id:'2',text:'Order coop lumber',done:false}],
-    aleigh: [{id:'3',text:'Pick up groceries',done:false},{id:'4',text:'Heath homework check',done:false}],
+    aleigh: [{id:'3',text:'Pick up groceries',done:false}],
+    heath:  [{id:'4',text:'Homework check',done:false},{id:'5',text:'Swim lessons',done:false}],
   };
   let shaneTasks  = JSON.parse(localStorage.getItem('fhd-tasks-shane')  || 'null') || defaults.shane;
   let aleighTasks = JSON.parse(localStorage.getItem('fhd-tasks-aleigh') || 'null') || defaults.aleigh;
+  let heathTasks  = JSON.parse(localStorage.getItem('fhd-tasks-heath')  || 'null') || defaults.heath;
 
   function save(who) {
-    if (who==='shane') localStorage.setItem('fhd-tasks-shane', JSON.stringify(shaneTasks));
-    else               localStorage.setItem('fhd-tasks-aleigh', JSON.stringify(aleighTasks));
+    if (who==='shane')       localStorage.setItem('fhd-tasks-shane',  JSON.stringify(shaneTasks));
+    else if (who==='aleigh') localStorage.setItem('fhd-tasks-aleigh', JSON.stringify(aleighTasks));
+    else                     localStorage.setItem('fhd-tasks-heath',  JSON.stringify(heathTasks));
   }
-  function getTasks(who) { return who==='shane' ? shaneTasks : aleighTasks; }
+  function getTasks(who) {
+    return who==='shane' ? shaneTasks : who==='aleigh' ? aleighTasks : heathTasks;
+  }
 
   renderTasks(shaneTasks,  'task-list-shane');
   renderTasks(aleighTasks, 'task-list-aleigh');
+  renderTasks(heathTasks,  'task-list-heath');
 
   window.addTask = function(who) {
     const inp = document.getElementById('task-inp-' + who);
     const v = inp.value.trim(); if (!v) return;
-    const t = {id:Date.now()+'', text:v, done:false};
-    getTasks(who).push(t); save(who);
-    renderTasks(getTasks(who), 'task-list-' + who);
-    inp.value = '';
+    getTasks(who).push({id:Date.now()+'', text:v, done:false});
+    save(who); renderTasks(getTasks(who), 'task-list-' + who); inp.value = '';
   };
   window.toggleTask = function(id, done, who) {
     const t = getTasks(who).find(x => x.id===id); if (t) t.done = !done;
     save(who); renderTasks(getTasks(who), 'task-list-' + who);
   };
   window.clearDone = function(who) {
-    if (who==='shane') shaneTasks = shaneTasks.filter(t=>!t.done);
-    else               aleighTasks = aleighTasks.filter(t=>!t.done);
+    if (who==='shane')       shaneTasks  = shaneTasks.filter(t=>!t.done);
+    else if (who==='aleigh') aleighTasks = aleighTasks.filter(t=>!t.done);
+    else                     heathTasks  = heathTasks.filter(t=>!t.done);
     save(who); renderTasks(getTasks(who), 'task-list-' + who);
   };
 }
