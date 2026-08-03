@@ -2079,7 +2079,7 @@ async function askGemini(text) {
         'Authorization': `Bearer ${CONFIG.GROK_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'grok-3-mini',
+        model: 'grok-4',
         messages: [
           { role: 'system', content: systemCtx },
           ...jarvisHistory.map(m => ({
