@@ -732,9 +732,18 @@ const CONFIG = {
   // News (newsapi.org)
   NEWS_API_KEY: 'YOUR_NEWSAPI_KEY',
 
-  // Gemini AI Assistant
-  GEMINI_API_KEY: 'AQ.Ab8RN6LZcH-pejEjTInxFVGuNWiCwCwUm9mzrLRWfiaku53-AQ',
+  // Gemini AI Assistant — key stored locally, never in code
+  GEMINI_API_KEY: '',
 };
+
+// ── LOAD SAVED API KEYS FROM LOCALSTORAGE ──
+// Keys typed into the dashboard are saved here — never in the code
+(function() {
+  const saved = JSON.parse(localStorage.getItem('fhd-api-keys') || '{}');
+  if (saved.gemini)  CONFIG.GEMINI_API_KEY  = saved.gemini;
+  if (saved.weather) CONFIG.WEATHER_API_KEY = saved.weather;
+  if (saved.news)    CONFIG.NEWS_API_KEY    = saved.news;
+})();
 
 // ── CHECKED EVENTS ──
 let checkedEvents = JSON.parse(localStorage.getItem('fhd-checked-events') || '{}');
@@ -1919,6 +1928,51 @@ function toggleJarvis() {
   if (jarvisOpen) setTimeout(() => document.getElementById('jarvis-input')?.focus(), 300);
 }
 
+function showJarvisKeySetup() {
+  // Show a message in the chat asking for the key
+  const msgs = document.getElementById('jarvis-messages');
+  const existing = document.getElementById('j-key-setup');
+  if (existing) { existing.querySelector('input')?.focus(); return; }
+
+  const div = document.createElement('div');
+  div.id = 'j-key-setup';
+  div.className = 'j-msg assistant';
+  div.innerHTML = `
+    <div class="j-avatar" style="font-size:18px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;">🔑</div>
+    <div class="j-bubble" style="flex:1;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Gemini API Key needed</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.5;">
+        Get a free key at <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--blue2);">aistudio.google.com</a> then paste it here. It saves to this device only — never uploaded anywhere.
+      </div>
+      <div style="display:flex;gap:6px;">
+        <input id="j-key-input" type="password" placeholder="Paste Gemini API key..."
+          style="flex:1;background:var(--bg4);border:1px solid var(--border2);border-radius:7px;
+          color:var(--text);font-size:12px;padding:7px 10px;outline:none;font-family:inherit;"
+          onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border2)'"/>
+        <button onclick="saveGeminiKey()" 
+          style="background:var(--blue);border:none;border-radius:7px;color:#fff;
+          font-size:12px;font-weight:600;padding:7px 12px;cursor:pointer;white-space:nowrap;">
+          Save
+        </button>
+      </div>
+    </div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  setTimeout(() => document.getElementById('j-key-input')?.focus(), 100);
+}
+
+function saveGeminiKey() {
+  const key = document.getElementById('j-key-input')?.value.trim();
+  if (!key) return;
+  CONFIG.GEMINI_API_KEY = key;
+  const saved = JSON.parse(localStorage.getItem('fhd-api-keys') || '{}');
+  saved.gemini = key;
+  localStorage.setItem('fhd-api-keys', JSON.stringify(saved));
+  document.getElementById('j-key-setup')?.remove();
+  addJarvisMessage('assistant', "Got it — I'm all set! Ask me anything.");
+  speakText("Got it, I'm all set. Ask me anything.");
+}
+
 function addJarvisMessage(role, text) {
   const msgs = document.getElementById('jarvis-messages');
   const div = document.createElement('div');
@@ -2002,8 +2056,8 @@ async function sendJarvis() {
 }
 
 async function askGemini(text) {
-  if (!CONFIG.GEMINI_API_KEY || CONFIG.GEMINI_API_KEY === 'YOUR_GEMINI_KEY') {
-    addJarvisMessage('assistant', 'Add your Gemini API key to the CONFIG block to enable me!');
+  if (!CONFIG.GEMINI_API_KEY) {
+    showJarvisKeySetup();
     return;
   }
   showTyping();
