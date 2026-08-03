@@ -609,21 +609,30 @@ const CONFIG = {
 // ── CHECKED EVENTS ──
 let checkedEvents = JSON.parse(localStorage.getItem('fhd-checked-events') || '{}');
 
-// ── MANUAL EVENT COLORS ──
+// ── MANUAL EVENT COLORS (synced via Firebase) ──
 let eventColors = JSON.parse(localStorage.getItem('fhd-event-colors') || '{}');
+let _colorRef = null; // set when Firebase connects
+
 function setEventColor(name, color) {
   eventColors[name] = color;
   localStorage.setItem('fhd-event-colors', JSON.stringify(eventColors));
-  // Update color in calEvs so calendar dots/pills reflect the change immediately
+  // Sync to Firebase if connected
+  if (_colorRef) _colorRef.child(btoa(unescape(encodeURIComponent(name))).replace(/[^a-zA-Z0-9]/g,'')).set(color);
+  // Update calEvs immediately
   Object.keys(calEvs).forEach(key => {
-    calEvs[key].forEach(ev => {
-      if (ev.name === name) ev.color = color;
-    });
+    calEvs[key].forEach(ev => { if (ev.name === name) ev.color = color; });
   });
   renderCal();
 }
 function getEventColor(name, defaultColor) {
   return eventColors[name] || defaultColor;
+}
+function applyEventColors() {
+  // Re-apply all saved colors to calEvs then re-render
+  Object.keys(calEvs).forEach(key => {
+    calEvs[key].forEach(ev => { if (eventColors[ev.name]) ev.color = eventColors[ev.name]; });
+  });
+  renderCal();
 }
 function toggleEventCheck(key, name) {
   const id = key + '::' + name;
@@ -1467,6 +1476,27 @@ function initFirebase() {
         nfoot();
       }
     };
+
+    // ── SHARED EVENT COLORS ──
+    _colorRef = db.ref('siron-hub/event-colors');
+    _colorRef.on('value', snap => {
+      const data = snap.val() || {};
+      // Decode keys back to event names and update eventColors
+      Object.entries(data).forEach(([encodedName, color]) => {
+        // Find matching event name in calEvs
+        Object.keys(calEvs).forEach(key => {
+          calEvs[key].forEach(ev => {
+            const encoded = btoa(unescape(encodeURIComponent(ev.name))).replace(/[^a-zA-Z0-9]/g,'');
+            if (encoded === encodedName) {
+              eventColors[ev.name] = color;
+              ev.color = color;
+            }
+          });
+        });
+      });
+      localStorage.setItem('fhd-event-colors', JSON.stringify(eventColors));
+      renderCal();
+    });
 
     // Show sync indicator
     showSyncStatus('🔥 Firebase connected — syncing live');
