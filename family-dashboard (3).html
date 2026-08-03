@@ -54,13 +54,28 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 /* ════════════════════════
    PAGE 1 — CALENDAR + NARROW SIDEBAR
 ════════════════════════ */
+/* Mobile: page 1 scrolls vertically, calendar stacks above sidebar */
 .pg1{flex-direction:row;overflow:hidden;}
+
+/* On mobile specifically, allow vertical scroll */
+@media (max-width: 699px) {
+  .pg1{flex-direction:column;overflow-y:auto;overflow-x:hidden;}
+  .pg1::-webkit-scrollbar{display:none;}
+}
 
 .cal-section{
   flex:1;min-width:0;
   display:flex;flex-direction:column;
-  padding:12px 8px 26px 12px;
+  padding:12px 8px 12px 12px;
   overflow:hidden;
+}
+
+@media (max-width: 699px) {
+  .cal-section{
+    overflow:visible;
+    flex:none;
+    padding:12px 10px 8px;
+  }
 }
 
 .cal-nav{
@@ -93,9 +108,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 .cal-grid{
   display:grid;
   grid-template-columns:repeat(7,1fr);
-  grid-template-rows:repeat(6,1fr);
   gap:3px;
   flex:1;
+}
+
+/* Mobile: let calendar expand to natural height */
+@media (max-width: 699px) {
+  .cal-grid{
+    grid-template-rows:repeat(6, 70px);
+    flex:none;
+  }
 }
 
 .cell{
@@ -106,7 +128,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
   padding:3px 1px 2px;
   cursor:pointer;overflow:hidden;
   transition:border-color .12s;
-  min-height:0;
 }
 .cell:active{background:var(--bg3);}
 .cell.today{border-color:var(--blue);background:rgba(79,128,232,.1);}
@@ -136,12 +157,23 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
 .cdot.red   {background:var(--red);}
 .cdot.pink  {background:var(--pink);}
 
-/* ── SIDEBAR — narrow on mobile ── */
+/* ── SIDEBAR — narrow on mobile, full width below on very small screens ── */
 .sidebar{
   width:115px;flex-shrink:0;
   background:var(--bg2);border-left:1px solid var(--border);
   display:flex;flex-direction:column;overflow:hidden;
   padding-bottom:26px;
+}
+
+@media (max-width: 699px) {
+  .sidebar{
+    width:100%;flex-shrink:0;
+    border-left:none;border-top:1px solid var(--border);
+    overflow:visible;height:auto;
+    padding-bottom:40px;
+  }
+  .sb-sec{flex:none;overflow:visible;}
+  .sb-body{overflow:visible;height:auto;}
 }
 
 .sb-sec{border-bottom:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex:1;}
@@ -617,7 +649,7 @@ function setEventColor(name, color) {
   eventColors[name] = color;
   localStorage.setItem('fhd-event-colors', JSON.stringify(eventColors));
   // Sync to Firebase if connected
-  if (_colorRef) _colorRef.child(btoa(unescape(encodeURIComponent(name))).replace(/[^a-zA-Z0-9]/g,'')).set(color);
+  if (_colorRef) _colorRef.child(name.replace(/[^a-zA-Z0-9]/g,'_')).set({name, color});
   // Update calEvs immediately
   Object.keys(calEvs).forEach(key => {
     calEvs[key].forEach(ev => { if (ev.name === name) ev.color = color; });
@@ -1481,21 +1513,26 @@ function initFirebase() {
     _colorRef = db.ref('siron-hub/event-colors');
     _colorRef.on('value', snap => {
       const data = snap.val() || {};
-      // Decode keys back to event names and update eventColors
-      Object.entries(data).forEach(([encodedName, color]) => {
-        // Find matching event name in calEvs
+      Object.values(data).forEach(({ name, color }) => {
+        if (!name || !color) return;
+        eventColors[name] = color;
+        // Apply to calEvs
         Object.keys(calEvs).forEach(key => {
-          calEvs[key].forEach(ev => {
-            const encoded = btoa(unescape(encodeURIComponent(ev.name))).replace(/[^a-zA-Z0-9]/g,'');
-            if (encoded === encodedName) {
-              eventColors[ev.name] = color;
-              ev.color = color;
-            }
-          });
+          calEvs[key].forEach(ev => { if (ev.name === name) ev.color = color; });
         });
       });
       localStorage.setItem('fhd-event-colors', JSON.stringify(eventColors));
       renderCal();
+    });
+
+    // ── SHARED GROCERY LIST ──
+    _groceryRef = db.ref('siron-hub/groceries');
+    _groceryRef.on('value', snap => {
+      const data = snap.val() || {};
+      const list = Object.entries(data)
+        .map(([id, g]) => ({ id, ...g }))
+        .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+      renderGroceries(list);
     });
 
     // Show sync indicator
@@ -1587,38 +1624,90 @@ function renderTasks(taskList, listId) {
 }
 
 // ── GROCERY LIST ──
-let groceries = JSON.parse(localStorage.getItem('fhd-groceries') || 'null') || [
-  { text: 'Milk', done: false },
-  { text: 'Eggs', done: false },
-  { text: 'Bread', done: false },
-];
-function saveGroceries() { localStorage.setItem('fhd-groceries', JSON.stringify(groceries)); }
-function renderGroceries() {
+let _groceryRef = null; // Firebase ref, set on connect
+
+function renderGroceries(list) {
   const el = document.getElementById('grocery-list'); if (!el) return;
   el.innerHTML = '';
-  groceries.forEach((g, i) => {
+  (list || []).forEach((g) => {
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;gap:7px;padding:5px 2px;border-radius:6px;';
     row.innerHTML = `
-      <div style="width:16px;height:16px;border-radius:50%;flex-shrink:0;border:2px solid ${g.done?'var(--green)':'var(--border2)'};
-        background:${g.done?'var(--green)':'transparent'};display:flex;align-items:center;justify-content:center;cursor:pointer;">
+      <div style="width:16px;height:16px;border-radius:50%;flex-shrink:0;
+        border:2px solid ${g.done?'var(--green)':'var(--border2)'};
+        background:${g.done?'var(--green)':'transparent'};
+        display:flex;align-items:center;justify-content:center;cursor:pointer;">
         ${g.done?'<svg width="8" height="6" viewBox="0 0 8 6" fill="none"><path d="M1 3L3 5L7 1" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
       </div>
-      <span style="font-size:12px;flex:1;color:${g.done?'var(--text3)':'var(--text)'};text-decoration:${g.done?'line-through':'none'};">${g.text}</span>
-      <button onclick="removeGrocery(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;">×</button>
+      <span style="font-size:12px;flex:1;color:${g.done?'var(--text3)':'var(--text)'};
+        text-decoration:${g.done?'line-through':'none'};">${g.text}</span>
+      <button onclick="removeGrocery('${g.id}')"
+        style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 2px;line-height:1;">×</button>
     `;
-    row.querySelector('div').onclick = () => { groceries[i].done=!groceries[i].done; saveGroceries(); renderGroceries(); };
+    row.querySelector('div').onclick = () => toggleGrocery(g.id, g.done);
     el.appendChild(row);
   });
 }
-function addGrocery() {
-  const inp=document.getElementById('grocery-inp');
-  const v=inp.value.trim(); if(!v) return;
-  groceries.push({text:v,done:false}); saveGroceries(); renderGroceries(); inp.value='';
+
+function toggleGrocery(id, done) {
+  if (_groceryRef) {
+    _groceryRef.child(id).update({ done: !done });
+  } else {
+    let groceries = JSON.parse(localStorage.getItem('fhd-groceries') || '[]');
+    const g = groceries.find(x => x.id === id);
+    if (g) g.done = !done;
+    localStorage.setItem('fhd-groceries', JSON.stringify(groceries));
+    renderGroceries(groceries);
+  }
 }
-function removeGrocery(i) { groceries.splice(i,1); saveGroceries(); renderGroceries(); }
-function clearGroceryDone() { groceries=groceries.filter(g=>!g.done); saveGroceries(); renderGroceries(); }
-renderGroceries();
+
+function addGrocery() {
+  const inp = document.getElementById('grocery-inp');
+  const v = inp.value.trim(); if (!v) return;
+  const item = { id: Date.now()+'', text: v, done: false, createdAt: Date.now() };
+  if (_groceryRef) {
+    _groceryRef.child(item.id).set(item);
+  } else {
+    let groceries = JSON.parse(localStorage.getItem('fhd-groceries') || '[]');
+    groceries.push(item);
+    localStorage.setItem('fhd-groceries', JSON.stringify(groceries));
+    renderGroceries(groceries);
+  }
+  inp.value = '';
+}
+
+function removeGrocery(id) {
+  if (_groceryRef) {
+    _groceryRef.child(id).remove();
+  } else {
+    let groceries = JSON.parse(localStorage.getItem('fhd-groceries') || '[]');
+    groceries = groceries.filter(g => g.id !== id);
+    localStorage.setItem('fhd-groceries', JSON.stringify(groceries));
+    renderGroceries(groceries);
+  }
+}
+
+function clearGroceryDone() {
+  if (_groceryRef) {
+    _groceryRef.once('value', snap => {
+      const data = snap.val(); if (!data) return;
+      Object.entries(data).forEach(([id, g]) => { if (g.done) _groceryRef.child(id).remove(); });
+    });
+  } else {
+    let groceries = JSON.parse(localStorage.getItem('fhd-groceries') || '[]');
+    groceries = groceries.filter(g => !g.done);
+    localStorage.setItem('fhd-groceries', JSON.stringify(groceries));
+    renderGroceries(groceries);
+  }
+}
+
+// Load from localStorage as fallback until Firebase connects
+const _localGroceries = JSON.parse(localStorage.getItem('fhd-groceries') || 'null');
+renderGroceries(_localGroceries || [
+  { id:'g1', text:'Milk',  done:false },
+  { id:'g2', text:'Eggs',  done:false },
+  { id:'g3', text:'Bread', done:false },
+]);
 
 // ── NOTES FOOTER ──
 function nfoot() {
