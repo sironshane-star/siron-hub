@@ -411,6 +411,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
         <button class="cnbtn" id="next-mo">&#8250;</button>
         <span class="cal-month" id="cal-month"></span>
         <button class="today-btn" onclick="goToday()">Today</button>
+      <button class="today-btn" onclick="openAddEvent()"
+        style="background:var(--blue);border-color:var(--blue);color:#fff;margin-left:6px;">
+        + Event
+      </button>
       </div>
       <div class="cal-wdays">
         <div class="cwl">S</div><div class="cwl">M</div><div class="cwl">T</div>
@@ -710,7 +714,12 @@ function addCell(g,num,other,isToday){
     c.onclick=()=>{
       document.querySelectorAll('.cell.selected').forEach(x=>x.classList.remove('selected'));
       c.classList.add('selected');
-      showDayEvents(key, num);
+      if (evs.length) {
+        showDayEvents(key, num);
+      } else {
+        // Empty day — open add event with that date pre-filled
+        openAddEvent(new Date(cY, cM, num));
+      }
     };
   }
   g.appendChild(c);
@@ -889,8 +898,158 @@ setInterval(fetchCalendarEvents, 30 * 60 * 1000);
 
 // ── DAY EVENT POPUP ──
 function rerenderPopup(key, dayNum) {
-  // Re-open the popup to reflect new color
   showDayEvents(key, dayNum);
+}
+
+// ── ADD EVENT MODAL ──
+function closeAddEvent() {
+  document.getElementById('add-event-modal')?.remove();
+  document.getElementById('add-event-backdrop')?.remove();
+}
+
+function openAddEvent(prefillDate) {
+  closeAddEvent();
+
+  // Default to today or the selected cell date
+  const now = new Date();
+  const d = prefillDate || new Date(cY, cM, now.getDate());
+  const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const timeStr = `${String(now.getHours()).padStart(2,'0')}:00`;
+
+  const backdrop = document.createElement('div');
+  backdrop.id = 'add-event-backdrop';
+  backdrop.style.cssText = 'position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.5);backdrop-filter:blur(3px);';
+  setTimeout(() => { backdrop.onclick = closeAddEvent; }, 50);
+
+  const modal = document.createElement('div');
+  modal.id = 'add-event-modal';
+  modal.style.cssText = `
+    position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+    background:var(--bg2);border:1px solid var(--border2);border-radius:14px;
+    padding:20px;width:min(400px,92vw);z-index:1001;
+    box-shadow:0 24px 80px rgba(0,0,0,0.7);
+  `;
+  modal.onclick = e => e.stopPropagation();
+
+  modal.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+      <div style="font-size:16px;font-weight:700;color:var(--text);">📅 Add Event</div>
+      <button onclick="closeAddEvent()" style="background:var(--bg3);border:1px solid var(--border);
+        color:var(--text2);cursor:pointer;width:28px;height:28px;border-radius:50%;
+        display:flex;align-items:center;justify-content:center;font-size:16px;">×</button>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+          color:var(--text3);margin-bottom:5px;">Event Title</div>
+        <input id="ae-title" type="text" placeholder="e.g. Spectrum Bill"
+          style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+          color:var(--text);font-size:14px;padding:9px 12px;outline:none;font-family:inherit;"
+          onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"/>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+            color:var(--text3);margin-bottom:5px;">Date</div>
+          <input id="ae-date" type="date" value="${dateStr}"
+            style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+            color:var(--text);font-size:13px;padding:8px 10px;outline:none;font-family:inherit;
+            color-scheme:dark;"
+            onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"/>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+            color:var(--text3);margin-bottom:5px;">Start Time</div>
+          <input id="ae-time" type="time" value="${timeStr}"
+            style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+            color:var(--text);font-size:13px;padding:8px 10px;outline:none;font-family:inherit;
+            color-scheme:dark;"
+            onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"/>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+          color:var(--text3);margin-bottom:5px;">End Time <span style="opacity:.5;font-weight:400;">(optional)</span></div>
+        <input id="ae-endtime" type="time"
+          style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+          color:var(--text);font-size:13px;padding:8px 10px;outline:none;font-family:inherit;
+          color-scheme:dark;"
+          onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"/>
+      </div>
+
+      <div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+          color:var(--text3);margin-bottom:5px;">Location <span style="opacity:.5;font-weight:400;">(optional)</span></div>
+        <input id="ae-location" type="text" placeholder="e.g. Bay City, MI"
+          style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+          color:var(--text);font-size:13px;padding:8px 10px;outline:none;font-family:inherit;"
+          onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"/>
+      </div>
+
+      <div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;
+          color:var(--text3);margin-bottom:5px;">Notes <span style="opacity:.5;font-weight:400;">(optional)</span></div>
+        <textarea id="ae-notes" placeholder="Any details..."
+          style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+          color:var(--text);font-size:13px;padding:8px 10px;outline:none;font-family:inherit;
+          resize:none;height:70px;line-height:1.5;"
+          onfocus="this.style.borderColor='var(--blue)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+      </div>
+
+      <button onclick="submitAddEvent()"
+        style="width:100%;padding:11px;background:var(--blue);border:none;border-radius:9px;
+        color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;
+        margin-top:2px;">
+        Open in Google Calendar →
+      </button>
+    </div>
+  `;
+
+  document.body.appendChild(backdrop);
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('ae-title')?.focus(), 100);
+}
+
+function submitAddEvent() {
+  const title    = document.getElementById('ae-title')?.value.trim();
+  const date     = document.getElementById('ae-date')?.value;
+  const time     = document.getElementById('ae-time')?.value;
+  const endtime  = document.getElementById('ae-endtime')?.value;
+  const location = document.getElementById('ae-location')?.value.trim();
+  const notes    = document.getElementById('ae-notes')?.value.trim();
+
+  if (!title) {
+    document.getElementById('ae-title').style.borderColor = 'var(--red)';
+    document.getElementById('ae-title').focus();
+    return;
+  }
+  if (!date) return;
+
+  // Build Google Calendar URL
+  // Format: 20260101T090000 (no dashes/colons)
+  const fmt = (d, t) => {
+    if (!d) return '';
+    const base = d.replace(/-/g,'');
+    if (!t) return base; // all day
+    return base + 'T' + t.replace(':','') + '00';
+  };
+
+  const start = fmt(date, time);
+  const end   = endtime ? fmt(date, endtime) : (time ? fmt(date, String(parseInt(time.split(':')[0])+1).padStart(2,'0') + ':' + time.split(':')[1]) : date.replace(/-/g,''));
+
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text:   title,
+    dates:  `${start}/${end}`,
+  });
+  if (location) params.set('location', location);
+  if (notes)    params.set('details', notes);
+
+  window.open('https://calendar.google.com/calendar/render?' + params.toString(), '_blank');
+  closeAddEvent();
 }
 
 function closeDayPopup() {
